@@ -1,0 +1,11 @@
+[package]
+name = "borsuk-cli"
+version = "0.0.1"
+edition = "2024"
+
+[[bin]]
+name = "brk"
+path = "src/main.rs"
+
+[dependencies]
+borsuk-core = { path = "../borsuk-core" }

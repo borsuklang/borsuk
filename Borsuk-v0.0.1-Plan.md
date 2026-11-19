@@ -5,7 +5,7 @@ The sources are the design `Borsuk-Language-Core-v0.1.html` (sections 3, 4, 5, 1
 
 ## 1. Result
 
-v0.0.1 gives one executable semantics of the Borsuk core in Lean 4 (`borsuk-ref`, the reference) and one in Rust (`borsuk`). Their outputs on the corpus of section 6 are equal.
+v0.0.1 gives one executable semantics of the Borsuk core in Lean 4 (`brk-ref`, the reference) and one in Rust (`brk`). Their outputs on the corpus of section 6 are equal.
 
 The grammar in section 2 is the complete language of v0.0.1.
 
@@ -183,22 +183,22 @@ The proof has no `sorry` and no new `axiom`. Imports come only from Lean core (`
 ## 6. Corpus
 
 ```
-corpus/accept/hello.sexp      + hello.out ("hello, world" and a newline)
-corpus/accept/slot.sexp       + slot.trace
-corpus/accept/tally.sexp      + tally.trace
-corpus/reject/<code>.sexp     + <code>.err, one pair for each code in section 4
-corpus/fail/wrong-fact.sexp   + wrong-fact.out
+corpus/accept/hello.brk       + hello.out ("hello, world" and a newline)
+corpus/accept/slot.brk        + slot.trace
+corpus/accept/tally.brk       + tally.trace
+corpus/reject/<code>.brk      + <code>.err, one pair for each code in section 4
+corpus/fail/wrong-fact.brk    + wrong-fact.out
 ```
 
 | File | Content |
 |---|---|
-| `slot.sexp` | The Slot machine of design section 5, with no durability name and no spec. The fields `holder` and `owner` and the answer of `Owner` use the type `Principal`. The file declares no `Client`. `HoldToken` is `(newtype HoldToken StepId)`. `SlotId` is `(newtype SlotId Int)`. Each example uses the key `(new SlotId 7)`. Three examples: (1) `old_timer_keeps_second_hold` from the design, with the same meaning. (2) `Create` by an admin, then `Hold`, then `Confirm` by the holder gives `(outcome (unit))` and the state `Booked`, then a second `Confirm` by the holder gives `(outcome (unit))`. (3) `Create` from a non-admin gives `(refused forbidden)`, `Hold` on an absent slot gives `(reject NoSlot)`, the query `Owner` gives `(answer (none))`, and `fire` in `Absent` gives `(fault impossible)`. |
-| `tally.sexp` | It has records, enums, newtypes, `Option`, `Result`, pure calls and a call of a `fn` with `(uses ConsoleOut)`, `ConsoleOut` in a machine, each operator, `(env now)`, `(env deadline)` and the fault `overflow`. |
+| `slot.brk` | The Slot machine of design section 5, with no durability name and no spec. The fields `holder` and `owner` and the answer of `Owner` use the type `Principal`. The file declares no `Client`. `HoldToken` is `(newtype HoldToken StepId)`. `SlotId` is `(newtype SlotId Int)`. Each example uses the key `(new SlotId 7)`. Three examples: (1) `old_timer_keeps_second_hold` from the design, with the same meaning. (2) `Create` by an admin, then `Hold`, then `Confirm` by the holder gives `(outcome (unit))` and the state `Booked`, then a second `Confirm` by the holder gives `(outcome (unit))`. (3) `Create` from a non-admin gives `(refused forbidden)`, `Hold` on an absent slot gives `(reject NoSlot)`, the query `Owner` gives `(answer (none))`, and `fire` in `Absent` gives `(fault impossible)`. |
+| `tally.brk` | It has records, enums, newtypes, `Option`, `Result`, pure calls and a call of a `fn` with `(uses ConsoleOut)`, `ConsoleOut` in a machine, each operator, `(env now)`, `(env deadline)` and the fault `overflow`. |
 | `reject/missing-cell` | The Slot machine with the command `Release` added to the protocol and no cell for it. The `.err` file holds the four lines of the design with the same text. |
 | `reject/<code>` | Each file gives exactly its own code. |
 | `fail/wrong-fact` | One example with one false fact. The `.out` file holds the expected output. |
 
-Each tail, fact and trace line kind runs in at least one example. Each other alternative of each grammar rule appears in at least one accepted file. A `.trace` file holds the stdout of `borsuk-ref test FILE`. The coordinator selects each name and each value that this section does not give.
+Each tail, fact and trace line kind runs in at least one example. Each other alternative of each grammar rule appears in at least one accepted file. A `.trace` file holds the stdout of `brk-ref test FILE`. The coordinator selects each name and each value that this section does not give.
 
 ## 7. Layout and `check.sh`
 
@@ -207,16 +207,16 @@ rust-toolchain.toml              channel 1.98.1
 Cargo.toml, Cargo.lock           workspace
 .gitignore                       target/ and spec/.lake/
 crates/borsuk-core/              Cargo.toml; src/ lib.rs ir.rs read.rs check.rs eval.rs runtime.rs print.rs
-crates/borsuk-cli/               Cargo.toml; src/main.rs: the executable `borsuk` and the example runner
+crates/borsuk-cli/               Cargo.toml; src/main.rs: the executable `brk` and the example runner
 spec/                            lean-toolchain, lakefile.toml, lake-manifest.json, Borsuk.lean
 spec/Borsuk/                     Ir Read Check Eval Runtime Print .lean
 spec/Borsuk/Proofs/              Coverage Axioms .lean
-spec/Main.lean                   the executable `borsuk-ref` and the example runner
+spec/Main.lean                   the executable `brk-ref` and the example runner
 corpus/                          section 6
 check.sh
 ```
 
-The paths of the executables are `target/release/borsuk` and `spec/.lake/build/bin/borsuk-ref`.
+The paths of the executables are `target/release/brk` and `spec/.lake/build/bin/brk-ref`.
 
 | Use | Behavior |
 |---|---|
@@ -225,7 +225,7 @@ The paths of the executables are `target/release/borsuk` and `spec/.lake/build/b
 | `run FILE` | Prints the lines, exit 0. A fault prints no `ConsoleOut` line, prints `fault F` and exits 1. With no deployment, it prints `error[bad-entry]: no deployment` and exits 1. |
 | `test FILE` | For each example in file order, it prints the trace lines of the example lines that ran, then `pass NAME` or `fail NAME: line N`. An example stops at its first failed line. N counts the `line` forms of the example from 1. Exit 0 when all examples pass, else 1. With no example, no output and exit 0. |
 | An unreadable file | `error[parse]: text is not a program`, exit 1. |
-| Any other use | The usage line below, on stderr, exit 2. NAME is `borsuk` or `borsuk-ref`. |
+| Any other use | The usage line below, on stderr, exit 2. NAME is `brk` or `brk-ref`. |
 
 ```
 usage: NAME check|run|test FILE
@@ -239,14 +239,14 @@ usage: NAME check|run|test FILE
 | 2 | `cd spec && lake build --wfail` |
 | 3 | `cd spec && lake env lean Borsuk/Proofs/Axioms.lean` prints the axiom line of `Borsuk.coverage`. Each axiom in it is `propext`, `Classical.choice` or `Quot.sound`. |
 | 4 | The comment search below finds nothing. |
-| 5 | Each accepted file: `check` exits 0 with no output. `test` output equals `<name>.trace`, exit 0. `hello.sexp` has no example and no trace file. `run hello.sexp` output equals `hello.out`, exit 0. `run slot.sexp` output equals `error[bad-entry]: no deployment`, exit 1. |
+| 5 | Each accepted file: `check` exits 0 with no output. `test` output equals `<name>.trace`, exit 0. `hello.brk` has no example and no trace file. `run hello.brk` output equals `hello.out`, exit 0. `run slot.brk` output equals `error[bad-entry]: no deployment`, exit 1. |
 | 6 | Each reject file: `check` output equals `<code>.err`, exit 1. |
 | 7 | The fail file: `test` output equals `wrong-fact.out`, exit 1. |
 
 | Stage | Steps |
 |---|---|
 | `setup` | 1, 2, 4 |
-| `lean` | `setup`, 3, and 5 to 7 for `borsuk-ref` |
+| `lean` | `setup`, 3, and 5 to 7 for `brk-ref` |
 | `all` | Steps 1 to 4, and 5 to 7 for both executables |
 
 This is the comment search of step 4.
@@ -261,7 +261,7 @@ grep -rnE '^[[:space:]]*(//|/\*|--|/-)|[[:space:]](//|--)[[:space:]]' crates spe
 |---|---|---|
 | P0 Setup | Branch `build/v0.0.1`. Install `elan` with the command below. Pin the newest release tag of `leanprover/lean4` with no `-rc` suffix. Write the tag in the message of the P0 commit. Pin Rust 1.98.1. Crate and package skeletons, `.gitignore`, `check.sh`. | `check.sh setup` passes. |
 | P1 Corpus | Each corpus file except the `.trace` files. | Gate G1 passes. In G1, a Fable reviewer examines the meaning of each file against the grammar, the design and this plan. |
-| P2 Lean | `Ir`, `Read`, `Check`, `Eval`, `Runtime`, `Print`, `Main` and the proof. The coordinator corrects a corpus file only where the file breaks this plan, and writes each correction in the commit message. When `Main` builds, the coordinator makes the `.trace` files with `borsuk-ref test FILE`. The coordinator makes them again each time a file in `spec/` changes. | `check.sh lean` passes. Gate G2 passes. In G2, a Fable reviewer examines each line of `slot.trace` and `tally.trace` against sections 2 and 3. The coordinator then freezes the corpus and the traces. |
+| P2 Lean | `Ir`, `Read`, `Check`, `Eval`, `Runtime`, `Print`, `Main` and the proof. The coordinator corrects a corpus file only where the file breaks this plan, and writes each correction in the commit message. When `Main` builds, the coordinator makes the `.trace` files with `brk-ref test FILE`. The coordinator makes them again each time a file in `spec/` changes. | `check.sh lean` passes. Gate G2 passes. In G2, a Fable reviewer examines each line of `slot.trace` and `tally.trace` against sections 2 and 3. The coordinator then freezes the corpus and the traces. |
 | P3 Rust | The two crates. | `check.sh all` passes. |
 | P4 Release | Gate G3. In G3, a Fable reviewer examines the full diff against this plan and the design. Then merge to `main` with `git merge --ff-only`. Run `check.sh all` on `main`. Make the tag `v0.0.1`. Push `main` and the tag. | The tag is on the remote. |
 

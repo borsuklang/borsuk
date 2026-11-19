@@ -1,0 +1,12 @@
+name = "borsuk"
+defaultTargets = ["Borsuk", "brk-ref"]
+
+[leanOptions]
+autoImplicit = false
+
+[[lean_lib]]
+name = "Borsuk"
+
+[[lean_exe]]
+name = "brk-ref"
+root = "Main"
