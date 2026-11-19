@@ -1,0 +1,7 @@
+(program
+  (enum Light (Red) (Amber) (Green))
+  (fn stop ((l Light)) Bool (uses)
+    (block
+      (match l
+        (arm (Red) (block (value true)))
+        (arm (Green) (block (value false)))))))

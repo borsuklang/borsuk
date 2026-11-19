@@ -1,0 +1,5 @@
+(program
+  (fn greet () Unit (uses)
+    (block
+      (do (ConsoleOut.print "hi"))
+      (value (unit)))))

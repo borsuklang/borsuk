@@ -1,0 +1,1 @@
+error[duplicate-cell]: machine `Lamp` has two cells for (Off, Toggle)

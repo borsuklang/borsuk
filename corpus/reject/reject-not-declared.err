@@ -1,0 +1,1 @@
+error[reject-not-declared]: command `Open` does not declare reject `Jammed`

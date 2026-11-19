@@ -1,0 +1,21 @@
+(program
+  (protocol CounterApi
+    (command Add ((n Int)) Int (rejects))
+    (query Count () Int))
+  (machine Counter (key Int) (protocol CounterApi) (uses) (init Zero)
+    (state Zero)
+    (state Counting (count Int))
+    (in Zero
+      (on Add (block (next (Counting n) (outcome n))))
+      (on Count (block (answer 0))))
+    (in Counting
+      (on Add
+        (block
+          (let sum (+ count n))
+          (next (Counting sum) (outcome sum))))
+      (on Count (block (answer count)))))
+  (example adds_up (machine Counter) (key 1)
+    (actor ann)
+    (send ann Add 2 (expect (outcome 2)))
+    (send ann Add 3 (expect (outcome 6)))
+    (send ann Count (expect (answer 5)))))

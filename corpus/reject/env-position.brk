@@ -1,0 +1,3 @@
+(program
+  (fn stamp () Time (uses)
+    (block (value (env now)))))

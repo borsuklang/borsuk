@@ -1,0 +1,7 @@
+(program
+  (protocol DoorApi
+    (command Open () Unit (rejects Locked)))
+  (machine Door (key Int) (protocol DoorApi) (uses) (init Shut)
+    (state Shut)
+    (in Shut
+      (on Open (block (reject Jammed))))))

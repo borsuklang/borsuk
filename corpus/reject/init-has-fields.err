@@ -1,0 +1,1 @@
+error[init-has-fields]: init state `Counting` of machine `Counter` has fields

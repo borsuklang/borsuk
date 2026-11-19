@@ -1,0 +1,13 @@
+(program
+  (protocol LampApi
+    (command Toggle () Unit (rejects)))
+  (machine Lamp (key Int) (protocol LampApi) (uses) (init Off)
+    (state Off)
+    (state On)
+    (group Any Off On)
+    (in Off
+      (on Toggle (block (next (On) (outcome (unit))))))
+    (in On
+      (on Toggle (block (next (Off) (outcome (unit))))))
+    (in Any
+      (on Toggle (block (stay (outcome (unit))))))))

@@ -1,0 +1,139 @@
+(program
+  (role Judge)
+  (newtype Points Int)
+  (record Ballot (voter Principal) (points Points) (note Text))
+  (enum Standing (Empty) (Leading Principal Int) (Final Int))
+  (fn is_late ((now Time) (deadline Time)) Bool (uses)
+    (block (value (< deadline now))))
+  (fn clamp ((p Int)) (Result Points Text) (uses)
+    (block
+      (match (< p 0)
+        (arm true (block (value (err "negative points"))))
+        (arm false (block (value (ok (new Points p))))))))
+  (fn worth ((p Points)) Int (uses)
+    (block
+      (match p
+        (arm (Points n) (block (value n))))))
+  (fn points_of ((b Ballot)) Int (uses)
+    (block (value (call worth (get b points)))))
+  (fn standing_of ((leader (Option Principal)) (best Int)) Standing (uses)
+    (block
+      (match leader
+        (arm (none) (block (value (new Empty))))
+        (arm (some who) (block (value (new Leading who best)))))))
+  (fn headline ((s Standing)) Text (uses)
+    (block
+      (match s
+        (arm (Empty) (block (value "no votes")))
+        (arm (Leading _ _) (block (value "a leader won")))
+        (arm (Final _) (block (value "already final"))))))
+  (fn announce ((b Ballot)) Unit (uses ConsoleOut)
+    (block
+      (do (ConsoleOut.print (get b note)))
+      (value (unit))))
+  (protocol TallyApi
+    (command Start ((span Duration)) Unit (rejects NotIdle BadSpan) (by Judge))
+    (command Vote ((points Int) (note Text)) Int (rejects NotRunning BadPoints))
+    (command Adjust ((factor Int) (penalty Int)) Int (rejects NotRunning) (by Judge))
+    (command Close ((final Bool)) (Result Int Text) (rejects NotRunning) (by Judge))
+    (query Total () (Option Int))
+    (query Leader () Standing))
+  (machine Tally (key Text) (protocol TallyApi) (uses ConsoleOut Timer) (init Idle)
+    (state Idle)
+    (state Running (total Int) (leader (Option Principal)) (best Int) (timer Ticket) (warned Bool))
+    (state Done (total Int))
+    (group Stopped Idle Done)
+    (in Stopped
+      (on Vote (block (reject NotRunning)))
+      (on Adjust (block (reject NotRunning)))
+      (on Close (block (reject NotRunning)))
+      (on Fired (block (ignore stale))))
+    (in Idle
+      (on Start
+        (block
+          (match (and (< (dur 0) span) (not (call is_late (env now) (env deadline))))
+            (arm false (block (reject BadSpan)))
+            (arm true
+              (block
+                (let timer (Timer.after span))
+                (next (Running 0 (none) 0 timer false) (outcome (unit))))))))
+      (on Total (block (answer (none))))
+      (on Leader (block (answer (new Empty)))))
+    (in Running
+      (on Start (block (reject NotIdle)))
+      (on Vote
+        (block
+          (match (call clamp points)
+            (arm (err _) (block (reject BadPoints)))
+            (arm (ok p)
+              (block
+                (let ballot (new Ballot (env sender) p note))
+                (do (call announce ballot))
+                (let sum (+ total (call points_of ballot)))
+                (match (and (< best points) (not (== points 0)))
+                  (arm true
+                    (block (next (Running sum (some (env sender)) points timer warned) (outcome sum))))
+                  (arm false
+                    (block (next (Running sum leader best timer warned) (outcome sum))))))))))
+      (on Adjust
+        (block
+          (let adjusted (- (* total factor) penalty))
+          (next (Running adjusted leader best timer warned) (outcome adjusted))))
+      (on Close
+        (block
+          (match final
+            (arm false (block (stay (outcome (err "tally stays open")))))
+            (arm true
+              (block
+                (do (Timer.cancel timer))
+                (do (ConsoleOut.print (call headline (call standing_of leader best))))
+                (next (Done total) (outcome (ok total))))))))
+      (on Total (block (answer (some total))))
+      (on Leader (block (answer (call standing_of leader best))))
+      (on Fired
+        (block
+          (match (== ticket timer)
+            (arm false (block (ignore stale)))
+            (arm true
+              (block
+                (match warned
+                  (arm true (block (stay)))
+                  (arm false
+                    (block
+                      (do (ConsoleOut.print "voting ends soon"))
+                      (next (Running total leader best timer true)))))))))))
+    (in Done
+      (on Start (block (reject NotIdle)))
+      (on Total (block (answer (some total))))
+      (on Leader (block (answer (new Final total))))))
+  (example tally_counts_votes (machine Tally) (key "spring")
+    (actor judge Judge)
+    (actor ann)
+    (actor bob)
+    (send judge Start (dur 60000000000) (expect (outcome (unit))))
+    (send ann Vote 5 "ann votes five"
+      (expect (outcome 5) (state Running 5 (some ann) 5 (ticket 1) false)))
+    (send bob Vote 3 "bob votes three" (expect (outcome 8)))
+    (send bob Vote -2 "bob takes two back" (expect (reject BadPoints)))
+    (send judge Adjust 3 4 (expect (outcome 20)))
+    (send ann Total (expect (answer (some 20))))
+    (send ann Leader (expect (answer (new Leading ann 5))))
+    (fire (ticket 1) (expect (state Running 20 (some ann) 5 (ticket 1) true)))
+    (fire (ticket 1) (expect (state Running 20 (some ann) 5 (ticket 1) true)))
+    (fire (ticket 2) (expect (ignored)))
+    (send judge Close false (expect (outcome (err "tally stays open"))))
+    (send judge Close true (expect (outcome (ok 20)) (state Done 20)))
+    (send bob Leader (expect (answer (new Final 20)))))
+  (example tally_overflow_faults (machine Tally) (key "autumn")
+    (actor judge Judge)
+    (actor cat)
+    (send cat Start (dur 1000) (expect (refused forbidden)))
+    (send judge Start (dur 0) (expect (reject BadSpan)))
+    (send cat Total (expect (answer (none))))
+    (send judge Start (dur 1000) (expect (outcome (unit))))
+    (send cat Vote 9223372036854775807 "cat votes the most"
+      (expect (outcome 9223372036854775807)))
+    (send cat Vote 1 "cat votes once more"
+      (expect
+        (fault overflow)
+        (state Running 9223372036854775807 (some cat) 9223372036854775807 (ticket 2) false)))))

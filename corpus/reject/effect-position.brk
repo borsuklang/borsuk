@@ -1,0 +1,3 @@
+(program
+  (fn shout ((t Text)) Unit (uses ConsoleOut)
+    (block (value (ConsoleOut.print t)))))

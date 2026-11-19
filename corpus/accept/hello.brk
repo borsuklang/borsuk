@@ -1,0 +1,6 @@
+(program
+  (fn main () Unit (uses ConsoleOut)
+    (block
+      (do (ConsoleOut.print "hello, world"))
+      (value (unit))))
+  (deployment hello_cli (platform cli) (entry main)))

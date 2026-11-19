@@ -1,0 +1,80 @@
+(program
+  (role ClinicAdmin)
+  (newtype SlotId Int)
+  (newtype HoldToken StepId)
+  (protocol SlotApi
+    (command Confirm ((token HoldToken)) Unit (rejects NoSlot NotHeld))
+    (command Create () Unit (rejects Exists) (by ClinicAdmin))
+    (command Hold () HoldToken (rejects NoSlot Taken))
+    (query Owner () (Option Principal)))
+  (machine Slot (key SlotId) (protocol SlotApi) (uses Timer) (init Absent)
+    (state Absent)
+    (state Free)
+    (state Held (holder Principal) (hold HoldToken) (timer Ticket))
+    (state Booked (owner Principal) (hold HoldToken))
+    (group Live Free Held Booked)
+    (in Absent
+      (on Confirm (block (reject NoSlot)))
+      (on Create (block (next (Free) (outcome (unit)))))
+      (on Hold (block (reject NoSlot)))
+      (on Owner (block (answer (none))))
+      (on Fired (block (impossible))))
+    (in Live
+      (on Create (block (reject Exists))))
+    (in Free
+      (on Confirm (block (reject NotHeld)))
+      (on Hold
+        (block
+          (let hold (new HoldToken (env step)))
+          (let timer (Timer.after (dur 30000000000)))
+          (next (Held (env sender) hold timer) (outcome hold))))
+      (on Owner (block (answer (none))))
+      (on Fired (block (ignore stale))))
+    (in Held
+      (on Confirm
+        (block
+          (match (and (== hold token) (== holder (env sender)))
+            (arm false (block (reject NotHeld)))
+            (arm true
+              (block
+                (do (Timer.cancel timer))
+                (next (Booked holder hold) (outcome (unit))))))))
+      (on Hold (block (reject Taken)))
+      (on Owner (block (answer (none))))
+      (on Fired
+        (block
+          (match (== timer ticket)
+            (arm false (block (ignore stale)))
+            (arm true (block (next (Free))))))))
+    (in Booked
+      (on Confirm
+        (block
+          (match (and (== hold token) (== owner (env sender)))
+            (arm false (block (reject NotHeld)))
+            (arm true (block (stay (outcome (unit))))))))
+      (on Hold (block (reject Taken)))
+      (on Owner (block (answer (some owner))))
+      (on Fired (block (ignore stale)))))
+  (example old_timer_keeps_second_hold (machine Slot) (key (new SlotId 7))
+    (actor admin ClinicAdmin)
+    (actor a)
+    (actor b)
+    (send admin Create (expect (outcome (unit))))
+    (send a Hold (expect (outcome (new HoldToken (step 2)))))
+    (fire (ticket 2) (expect (state Free)))
+    (send b Hold (expect (outcome (new HoldToken (step 4)))))
+    (fire (ticket 2) (expect (state Held b (new HoldToken (step 4)) (ticket 4)))))
+  (example holder_confirms_twice (machine Slot) (key (new SlotId 7))
+    (actor admin ClinicAdmin)
+    (actor a)
+    (send admin Create (expect (outcome (unit))))
+    (send a Hold (expect (outcome (new HoldToken (step 2)))))
+    (send a Confirm (new HoldToken (step 2))
+      (expect (outcome (unit)) (state Booked a (new HoldToken (step 2)))))
+    (send a Confirm (new HoldToken (step 2)) (expect (outcome (unit)))))
+  (example absent_slot_refuses (machine Slot) (key (new SlotId 7))
+    (actor c)
+    (send c Create (expect (refused forbidden)))
+    (send c Hold (expect (reject NoSlot)))
+    (send c Owner (expect (answer (none))))
+    (fire (ticket 1) (expect (fault impossible)))))

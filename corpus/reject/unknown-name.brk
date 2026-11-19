@@ -1,0 +1,3 @@
+(program
+  (fn twice ((x Int)) Int (uses)
+    (block (value (+ x y)))))

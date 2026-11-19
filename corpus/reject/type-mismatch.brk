@@ -1,0 +1,3 @@
+(program
+  (fn label ((n Int)) Text (uses)
+    (block (value n))))

@@ -1,0 +1,7 @@
+(program
+  (protocol CounterApi
+    (query Count () Int))
+  (machine Counter (key Int) (protocol CounterApi) (uses) (init Counting)
+    (state Counting (count Int))
+    (in Counting
+      (on Count (block (answer count))))))

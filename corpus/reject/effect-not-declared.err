@@ -1,0 +1,1 @@
+error[effect-not-declared]: `greet` does not declare effect `ConsoleOut`

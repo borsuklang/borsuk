@@ -1,0 +1,11 @@
+(program
+  (fn even ((n Int)) Bool (uses)
+    (block
+      (match (== n 0)
+        (arm true (block (value true)))
+        (arm false (block (value (call odd (- n 1))))))))
+  (fn odd ((n Int)) Bool (uses)
+    (block
+      (match (== n 0)
+        (arm true (block (value false)))
+        (arm false (block (value (call even (- n 1)))))))))

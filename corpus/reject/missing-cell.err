@@ -1,0 +1,4 @@
+error[missing-cell]: machine `Slot` has no cell for (Absent, Release)
+error[missing-cell]: machine `Slot` has no cell for (Free, Release)
+error[missing-cell]: machine `Slot` has no cell for (Held, Release)
+error[missing-cell]: machine `Slot` has no cell for (Booked, Release)

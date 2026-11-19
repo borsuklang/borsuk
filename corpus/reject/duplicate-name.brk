@@ -1,0 +1,3 @@
+(program
+  (role Admin)
+  (record Admin (id Int)))
