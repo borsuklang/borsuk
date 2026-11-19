@@ -663,7 +663,7 @@ ul.plain li::marker { color: var(--muted); }
   <div class="hero-text">
     <p class="eyebrow">Language design · version 0.1 · 19 November 2026</p>
     <h1 id="h-top">Borsuk Language Core</h1>
-    <p class="tagline">A language for services that must keep their state correct. Coding agents write it. People read it through tools.</p>
+    <p class="tagline">A language for services of every size, from a personal blog to a payment system. Coding agents write it. People read it through tools.</p>
     <p class="lede">This document describes the design of version 0.1. Each section says what a part is, how it works, and why the language needs it. You do not need to know how languages are built. Section 2 follows one request through a running system. A consistency check near the end tests whether all parts fit together.</p>
     <div class="equation" aria-label="The core equation"><span class="k">step</span> : (State, Envelope&lt;Input&gt;) → (State, List&lt;<span class="e">Output</span>&gt;)</div>
     <ul class="status">
@@ -727,7 +727,21 @@ ul.plain li::marker { color: var(--muted); }
     <h2 id="h-why">What the language is for</h2>
   </div>
   <div class="prose">
-    <p>Borsuk is for services that hold important state and change it on request: bookings, payments, orders, accounts. A caller sends a command. The service decides it, stores the decision so that it survives a crash, and replies. If the reply is lost, the caller can ask again and gets the same decision. Such services run on many nodes and serve millions of keys.</p>
+    <p>Borsuk is for services of every size. A personal blog, a pet website, a shop, a booking system and a payment service all fit. Each one holds state and changes it on request. A caller sends a command. The service decides it, stores the decision so that it survives a crash, and replies. If the reply is lost, the caller can ask again and gets the same decision.</p>
+    <p>A small service uses a small part of the language. The largest services set the hardest rules, so most of this document describes them.</p>
+  </div>
+  <div class="frame scroll">
+    <table class="tbl min760">
+      <thead><tr><th>Size</th><th>Example</th><th>What it uses</th><th>What it never pays for</th></tr></thead>
+      <tbody>
+        <tr><th>Small</th><td>A personal blog, a pet website, a command-line tool</td><td>One node. In-memory machines or <code>durable local</code>. The HTTP or CLI platform.</td><td>A cluster, consensus, transactions. A machine with no durability name compiles with no store code.</td></tr>
+        <tr><th>Medium</th><td>A shop, a booking system for one clinic</td><td>Three nodes in one region. <code>durable quorum(1)</code>. <code>pending</code> and <code>decide</code> for payments.</td><td>Copies in other regions</td></tr>
+        <tr><th>Large</th><td>A booking platform, a payment service</td><td>Many nodes in several zones or regions. <code>durable zonal</code> or <code>durable regional</code>. Transactions and global protocols.</td><td>Nothing. It uses the whole language.</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="cap">One language and one set of rules for each size. A service can grow from one row to the next. It changes its durability names and its deployment file, and the runtime moves its stored data. Its cells do not change.</p>
+  <div class="prose">
     <p>Today, teams write these services by hand in Rust, Go or Java, with a database, a queue and many conventions. Three mistakes are common. A service replies before the data is safe. A retry runs a command twice. A timer fires for an old request and changes new data. Borsuk makes the rules against these mistakes part of the language, and its tools check them.</p>
   </div>
   <div class="frame scroll">
@@ -746,7 +760,7 @@ ul.plain li::marker { color: var(--muted); }
     <li><b>Agents write, people read</b>Coding agents write the code. People read it through tools that draw tables, diagrams and traces from it.</li>
     <li><b>One way per thing</b>Each concept has one construct, and normal-form rules remove equal variants. The goal is one accepted text for one behavior.</li>
     <li><b>Laws that tools check</b>Each machine states laws. Tools check them and report the kind of evidence: a proof, a bounded check, or a sample.</li>
-    <li><b>Fast and distributed</b>The target is at least 95 % of the speed of expert hand-written Rust with the same durability, on many nodes.</li>
+    <li><b>Fast and distributed</b>The target is at least 95 % of the speed of expert hand-written Rust with the same durability, on one node or on many.</li>
   </ol>
 </section>
 
@@ -2311,7 +2325,7 @@ ul.plain li::marker { color: var(--muted); }
     <h2 id="h-fut">Toward a universal language</h2>
   </div>
   <div class="prose">
-    <p>The long-term goal is a universal language in the class of Java, Scala, Rust or TypeScript. It is one language for services, tools, libraries, data processing and user interfaces. Version 0.1 focuses on durable backend services, because that is where the hardest rules live. Nothing in v0.1 limits the language to that use. The three kinds of code are general. A pure <code>fn</code> is ordinary code. An effectful <code>fn</code> is an ordinary program. A machine is a long-lived component. Durability is optional, and the platform decides which effects exist.</p>
+    <p>The long-term goal is a universal language in the class of Java, Scala, Rust or TypeScript. It is one language for services, tools, libraries, data processing and user interfaces. Version 0.1 covers services and tools of every size. The hardest rules come from durable services, so most of the design describes them. Nothing in v0.1 limits the language to that use. The three kinds of code are general. A pure <code>fn</code> is ordinary code. An effectful <code>fn</code> is an ordinary program. A machine is a long-lived component. Durability is optional, and the platform decides which effects exist.</p>
   </div>
   <div class="twocol">
     <div>
@@ -2332,7 +2346,7 @@ ul.plain li::marker { color: var(--muted); }
       <table class="tbl">
         <thead><tr><th>Use</th><th>State in v0.1</th><th>What a later version adds</th></tr></thead>
         <tbody>
-          <tr><th>Durable services</th><td>The focus of v0.1</td><td></td></tr>
+          <tr><th>Services of every size, from a blog to a payment system</th><td>Work in v0.1</td><td></td></tr>
           <tr><th>Command-line tools, scripts</th><td>Work: <code>fn … uses</code> on the <code>cli</code> platform</td><td>A larger standard library</td></tr>
           <tr><th>Libraries</th><td>Work: pure functions, generics, interfaces with laws</td><td>A package registry</td></tr>
           <tr><th>Data processing</th><td>Partly: pure functions and <code>for</code></td><td>Fast floating point with equal replay, SIMD, parallel pure maps</td></tr>
