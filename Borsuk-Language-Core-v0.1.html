@@ -605,6 +605,7 @@ ul.plain li::marker { color: var(--muted); }
 @media (max-width: 760px) { .gloss-groups { grid-template-columns: minmax(0, 1fr); } }
 .txgrid { display: grid; gap: 14px; }
 .tbl th small.tag { display: block; margin-top: 4px; font-family: var(--f-body); font-size: 10.5px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); }
+.solo { max-width: 760px; }
 @media (max-width: 980px) {
   .hero, .lw-grid, .prog-panel { grid-template-columns: minmax(0, 1fr); }
   .flow { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -708,7 +709,7 @@ ul.plain li::marker { color: var(--muted); }
         <path class="wire" d="M250 306 H80 V196" marker-end="url(#c-ah)"/>
         <text class="lbl" x="165" y="298" text-anchor="middle">answers come back</text>
       </svg>
-      <figcaption>One step. The runtime puts each input in an envelope with the time and an ID. The step is a pure function: it computes the next state and a list of outputs and changes nothing outside. The store writes the result to its log. Only after that write is safe does the platform send the outputs. Their answers come back as new inputs.</figcaption>
+      <figcaption>One step. The runtime puts each input in an envelope with the time and an ID. The step is a pure function. It computes the next state and a list of outputs, and it changes nothing outside. The store writes the result to its log. Only after that write is safe does the platform send the outputs. Their answers come back as new inputs.</figcaption>
     </figure>
     <ul class="answers" aria-label="In one minute">
       <li><a href="#walk">What happens to one request?</a><span>Section 2 follows it from the network to the disk and back.</span></li>
@@ -801,7 +802,7 @@ ul.plain li::marker { color: var(--muted); }
         <text class="t2" x="320" y="284">its own consensus group · assigns key ranges to shards · gives each key range a writer epoch · bounds node clocks</text>
       </svg>
     </div>
-    <figcaption>A <strong>node</strong> is a computer. A <strong>shard</strong> runs on one core and owns one or more <strong>key ranges</strong>: ranges of hash values of keys. Each key range has its own log and writer epoch. For <code>durable quorum(1)</code>, the shard sends each batch of log records to two other nodes. A record is safe when two of the three copies are on disk. A <code>durable local</code> machine keeps one copy on the local disk only.</figcaption>
+    <figcaption>A <strong>node</strong> is a computer. A <strong>shard</strong> runs on one core and owns one or more <strong>key ranges</strong>. A key range is a range of hash values of keys. Each key range has its own log and writer epoch. For <code>durable quorum(1)</code>, the shard sends each batch of log records to two other nodes. A record is safe when two of the three copies are on disk. A <code>durable local</code> machine keeps one copy on the local disk only.</figcaption>
   </figure>
   <figure class="frame">
     <div class="scroll">
@@ -898,7 +899,7 @@ ul.plain li::marker { color: var(--muted); }
       <ul class="limits" style="grid-template-columns: minmax(0,1fr)">
         <li><b>Pure.</b> The result depends only on the state and the envelope.</li>
         <li><b>Bounded.</b> A step has a fixed cost limit. A long computation splits across steps, because a long step delays every instance on its shard.</li>
-        <li><b>Total.</b> A step returns a result for every input. A fault, such as an integer overflow, is a defined result: the state does not change, and the runtime records the fault.</li>
+        <li><b>Total.</b> A step returns a result for every input. A fault, such as an integer overflow, is a defined result. The state does not change, and the runtime records the fault.</li>
         <li><b>Errors are values.</b> <code>Result</code> and <code>?</code> carry errors. There are no exceptions.</li>
       </ul>
     </div>
@@ -1246,7 +1247,7 @@ ul.plain li::marker { color: var(--muted); }
           <div><dt>Who may create</dt><dd><code>by</code> always means "sent by". In the protocol, <code>by ClinicAdmin</code> limits <code>Create</code> to senders with that role. The runtime refuses any other sender before the step.</dd></div>
           <div><dt>Group cell</dt><dd><code>Create</code> has the same answer in all live states, so the text writes it once, for the group <code>Live</code>.</dd></div>
           <div><dt>Impossible</dt><dd><code>(Absent, Fired)</code> can never happen, because no timer exists before <code>Free</code>. This is a proof duty for the checker (section 10).</dd></div>
-          <div><dt>Laws</dt><dd><code>holder_confirms</code> says that the holder who confirms in time wins. It holds only while the shard is up and not overloaded. "Within 30s" means less than 30 seconds of envelope time. A machine that refuses every <code>Hold</code> satisfies all three laws. The witness rule still rejects it: a release needs a trace that produces each declared outcome, and such a machine never returns a <code>HoldToken</code> (section 10).</dd></div>
+          <div><dt>Laws</dt><dd><code>holder_confirms</code> says that the holder who confirms in time wins. It holds only while the shard is up and not overloaded. "Within 30s" means less than 30 seconds of envelope time. A machine that refuses every <code>Hold</code> satisfies all three laws. The witness rule still rejects it. A release needs a trace that produces each declared outcome, and such a machine never returns a <code>HoldToken</code> (section 10).</dd></div>
           <div><dt>Example</dt><dd>An <code>example</code> is an optional scenario with exact results. A team writes one only for critical logic that no law states. Tools show it as a trace.</dd></div>
           <div><dt>Size</dt><dd>About 100 lines. The text is long and strict on purpose. Agents write it. People read the table and the diagram.</dd></div>
         </dl>
@@ -1325,7 +1326,7 @@ ul.plain li::marker { color: var(--muted); }
         <dl class="facts">
           <div><dt>Missing cells</dt><dd>A new input needs a cell in every state. The checker lists each missing one, with a typed hole: the expected answer type, the effects in scope and the legal endings.</dd></div>
           <div><dt>Law change</dt><dd>With <code>Release</code>, a second client can own the slot later, so <code>one_owner</code> fails, and the checker shows a trace. The law must change to "at most one owner at a time". That is a change of the contract.</dd></div>
-          <div><dt>Approval</dt><dd>A spec change appears in the contract diff: the list of changed inputs, answers and laws. A person approves it before the change merges.</dd></div>
+          <div><dt>Approval</dt><dd>A spec change appears in the contract diff, which lists the changed inputs, answers, laws and examples. A person approves it before the change merges.</dd></div>
           <div><dt>Edit unit</dt><dd>The code store keeps a hash for each cell, and agents edit through it. Two agents that change two different cells do not conflict.</dd></div>
         </dl>
       </div>
@@ -1469,7 +1470,7 @@ ul.plain li::marker { color: var(--muted); }
         </tbody>
       </table>
     </div>
-    <p class="cap">The <strong>ID clock bound</strong> is a deployment setting, for example 5 minutes. A client whose clock is wrong by more than the bound gets a refusal at admission, not a second run.</p>
+    <p class="cap">The <strong>ID clock bound</strong> is a deployment setting, for example 5 minutes. A client whose clock is wrong by more than the bound gets a refusal at admission. Its command never runs a second time.</p>
   </div>
 
   <div class="sub">
@@ -1513,7 +1514,7 @@ ul.plain li::marker { color: var(--muted); }
           <text class="t2" x="280" y="236" text-anchor="middle">permits a log trim</text>
         </svg>
       </div>
-      <figcaption>The log is the only durable truth. The index is a cache: the runtime can rebuild it from the log at any time. Amazon Aurora, Neon, Restate and Meta's Delos use the same split.</figcaption>
+      <figcaption>The log is the only durable truth. The index is a cache. The runtime can rebuild it from the log at any time. Amazon Aurora, Neon, Restate and Meta's Delos use the same split.</figcaption>
     </figure>
     <div class="twocol">
       <div>
@@ -1547,7 +1548,7 @@ ul.plain li::marker { color: var(--muted); }
   <div class="sub">
     <h3>Personal data and erasure</h3>
     <div class="prose">
-      <p>The type of a field can carry the mark <code>personal</code>, for example a name or an email address. The type also names the field that holds the neutral ID of the person. The runtime encrypts each personal field with a key that belongs to that one person. To erase a person, the system deletes the key. When the last copy of the key expires, every copy of the encrypted bytes is unreadable, also in old logs. This happens within the <strong>erasure deadline</strong>, a deployment setting, for example 30 days. Inputs with personal fields are the one exception to zero-copy reads: at admission, the runtime encrypts those fields into slots of fixed size.</p>
+      <p>The type of a field can carry the mark <code>personal</code>, for example a name or an email address. The type also names the field that holds the neutral ID of the person. The runtime encrypts each personal field with a key that belongs to that one person. To erase a person, the system deletes the key. When the last copy of the key expires, every copy of the encrypted bytes is unreadable, also in old logs. This happens within the <strong>erasure deadline</strong>, a deployment setting, for example 30 days. Inputs with personal fields are the one exception to zero-copy reads. At admission, the runtime encrypts those fields into slots of fixed size.</p>
     </div>
     <div class="frame scroll">
       <table class="tbl min880">
@@ -1609,7 +1610,7 @@ ul.plain li::marker { color: var(--muted); }
         <line class="lead" x1="580" y1="245" x2="650" y2="170"/>
       </svg>
     </div>
-    <figcaption>Each shard runs on one core and shares no memory with other shards. A log belongs to a hash range, not to a core. A key range has exactly one writer at a time. To move a range, the control plane gives the new writer a higher epoch. The store then refuses every write of the old epoch. The control plane splits a hot range into two ranges. The scheduler sits behind a stable interface, so a later scheduler can change how ranges map to cores with no change to programs.</figcaption>
+    <figcaption>Each shard runs on one core and shares no memory with other shards. A log belongs to a key range, and it moves with the range. A key range has exactly one writer at a time. To move a range, the control plane gives the new writer a higher epoch. The store then refuses every write of the old epoch. The control plane splits a hot range into two ranges. The scheduler sits behind a stable interface, so a later scheduler can change how ranges map to cores with no change to programs.</figcaption>
   </figure>
 
   <div class="twocol">
@@ -1758,7 +1759,7 @@ ul.plain li::marker { color: var(--muted); }
     </div>
     <div class="callout">
       <h3>Escrow</h3>
-      <p>A concert has 10,000 seats and 50,000 buyers in the first minute. One instance cannot take that rate. Escrow splits the seats into parts, for example 100 instances with 100 seats each. Each part sells from its own stock. A part that runs out asks another part for seats. Escrow is a library global protocol with one law: the sum of all parts never exceeds the total.</p>
+      <p>A concert has 10,000 seats and 50,000 buyers in the first minute. One instance cannot take that rate. Escrow splits the seats into parts, for example 100 instances with 100 seats each. Each part sells from its own stock. A part that runs out asks another part for seats. Escrow is a library global protocol with one law. The sum of all parts never exceeds the total.</p>
     </div>
   </div>
   <div class="callout">
@@ -1784,7 +1785,7 @@ ul.plain li::marker { color: var(--muted); }
         <tr><th>Values</th><td>Each value has exactly one owner. A value is a tree, never a graph with shared parts.</td><td>No collector pauses, no shared mutable data, simple proofs</td></tr>
         <tr><th>Change</th><td>A binding never changes. Code builds a new value from the old one. When nothing else uses the old value, the compiler reuses its storage, so the update happens in place.</td><td>The code reads like math, and it runs as fast as an update in place.</td></tr>
         <tr><th>Parameters</th><td>A parameter is a read (no keyword) or a <code>take</code> (the callee consumes the value). A copy that is not trivial must be written <code>copy(x)</code>. The compiler accepts only the modes that the mode function M computes from the body (below).</td><td>One signature for each body, and every copy is visible</td></tr>
-        <tr><th>Temporaries</th><td>Each shard has one arena: a block of memory where an allocation only moves a pointer forward. A step puts its temporary values there. The runtime clears the whole arena after the step.</td><td>An allocation costs one addition, and hot paths free nothing.</td></tr>
+        <tr><th>Temporaries</th><td>Each shard has one arena, a block of memory where an allocation only moves a pointer forward. A step puts its temporary values there. The runtime clears the whole arena after the step.</td><td>An allocation costs one addition, and hot paths free nothing.</td></tr>
         <tr><th>Instance state</th><td>A record of fixed size, plus collections. Every collection states a maximum size, for example <code>max 500</code>. It can also state an age limit, for example <code>retain 30d</code>.</td><td>Every instance has a known upper size.</td></tr>
         <tr><th>Inputs</th><td>Each type has one byte layout. A step reads an input field directly in the received bytes, with no copy. An input with personal fields is copied once at admission, to encrypt them (section 6).</td><td>No decode cost. An experiment must confirm the layout size.</td></tr>
         <tr><th>Cold data</th><td>A step reads a collection entry only by a key that the input or the fixed record gives. The shard loads that entry before the step starts.</td><td>A step never waits for a disk.</td></tr>
@@ -1799,7 +1800,7 @@ ul.plain li::marker { color: var(--muted); }
     <p>The language spec defines one function M from a function body to its signature. The compiler accepts only M(body), and an error message prints it. So an agent never chooses a mode. Five rules make M total:</p>
     <ul class="plain">
       <li>A private function takes a parameter that it passes on to an owner. It never copies the whole parameter.</li>
-      <li>The mode inside a function parameter follows from the body: <code>take</code> when each call passes the value at its last use, otherwise read.</li>
+      <li>The mode inside a function parameter follows from the body. It is <code>take</code> when each call passes the value at its last use, and read in every other case.</li>
       <li>The parameters of a private function are in the order of their first use in the body.</li>
       <li>The mode of a generic parameter is computed for the owned case. A plain type ignores it.</li>
       <li>The hash of a definition covers the signatures of the functions that it calls, so a changed mode changes the hash of each caller.</li>
@@ -1947,7 +1948,7 @@ ul.plain li::marker { color: var(--muted); }
       <thead><tr><th>Result</th><th>Meaning</th><th>Tool that produces it</th></tr></thead>
       <tbody>
         <tr><th><span class="chip yes">Proved</span></th><td>The law holds for every input and every order of events, under the listed assumptions.</td><td>A decision procedure: an algorithm that always answers yes or no for one narrow class of law. An SMT solver: a program that searches for a counterexample to a logical formula, and reports "none exists". Lean: a proof assistant, in which a person or an agent writes a proof that a small checker confirms.</td></tr>
-        <tr><th><span class="chip cond">Checked within bounds</span></th><td>The law holds for every case up to a stated size, for example 3 clients and 2 holds. The record states each bound. The tools also run one step above each bound and report any change.</td><td>A model checker: it tries every order of events up to the bound.</td></tr>
+        <tr><th><span class="chip cond">Checked within bounds</span></th><td>The law holds for every case up to a stated size, for example 3 clients and 2 holds. The record states each bound. The tools also run one step above each bound and report any change.</td><td>A model checker, which tries every order of events up to the bound</td></tr>
         <tr><th><span class="chip moot">Sampled</span></th><td>The law held in the runs that we tried. The record lists what the runs reached: cells, branches, law conditions, and each pair of fault and step phase. It also lists what no run reached.</td><td>Deterministic simulation with injected faults, also of a whole deployment; law monitors on the production log</td></tr>
         <tr><th><span class="chip no">Counterexample</span></th><td>The law fails. A trace shows how, and the trace replays exactly.</td><td>Any of the above</td></tr>
         <tr><th><span class="chip moot">Unknown</span></th><td>No tool gave an answer. The report shows the open claim.</td><td></td></tr>
@@ -1982,11 +1983,11 @@ ul.plain li::marker { color: var(--muted); }
   <div class="callout">
     <h3>Two levels of checks</h3>
     <p>A <strong>static rule</strong> is a rule that the compiler always decides: types, effects, ownership and the full table of cells. A program that breaks one does not compile.</p>
-    <p>A <strong>proof duty</strong> is a claim that a tool cannot always settle. Examples: "this cell can never run" (<code>impossible</code>), "this recursion ends" (<code>decreases</code>), "each instance of this in-memory machine reaches a <code>final</code> state" (<code>expire idle never</code>), and a law of an interface. A proof duty gets one of the five results above, and a program release needs "proved" for each one. A spec law is different: the release report shows its result, and the person who approves the spec sets the minimum result for each law. A new solver version can turn "proved" into "unknown". It can never make a program fail to compile. A cell marked <code>impossible</code> that runs anyway gives a stored fault.</p>
+    <p>A <strong>proof duty</strong> is a claim that a tool cannot always settle. Examples: "this cell can never run" (<code>impossible</code>), "this recursion ends" (<code>decreases</code>), "each instance of this in-memory machine reaches a <code>final</code> state" (<code>expire idle never</code>), and a law of an interface. A proof duty gets one of the five results above, and a program release needs "proved" for each one. A spec law is different. The release report shows its result, and the person who approves the spec sets the minimum result for each law. A new solver version can turn "proved" into "unknown". It can never make a program fail to compile. A cell marked <code>impossible</code> that runs anyway gives a stored fault.</p>
   </div>
   <div class="sub">
     <h3>What a team still tests</h3>
-    <p class="sec-lede">A goal of the language is that a team writes as few tests as possible: end-to-end checks and tests of critical logic only. The compiler, the runtime and the checker cover the rest.</p>
+    <p class="sec-lede">A goal of the language is that a team writes as few tests as possible. These are end-to-end checks and tests of critical logic only. The compiler, the runtime and the checker cover the rest.</p>
     <div class="frame scroll">
       <table class="tbl min880">
         <thead><tr><th>Kind of mistake</th><th>What covers it</th><th>Tests that the team writes</th></tr></thead>
@@ -2002,7 +2003,7 @@ ul.plain li::marker { color: var(--muted); }
         </tbody>
       </table>
     </div>
-    <p class="cap">The cost of this goal: the spec carries the weight that tests carry elsewhere. A person is a weak last guard when the person sees only text. So the approval covers the law strength report, the witnesses and the boundary traces, not the text alone.</p>
+    <p class="cap">This goal has a cost. The spec carries the weight that tests carry elsewhere. A person is a weak last guard when the person sees only text. So the approval covers the law strength report, the witnesses and the boundary traces in addition to the text.</p>
   </div>
   <div class="twocol">
     <div class="callout">
@@ -2087,7 +2088,7 @@ ul.plain li::marker { color: var(--muted); }
         <tr><th>One construct per concept</th><td><code>match</code> only, no <code>if</code>. <code>Result</code> only, no exceptions. One loop form: <code>for</code> over a collection. Recursion only where <code>for</code> cannot work, with <code>decreases</code> or with a wait. One way to answer each pair of state and input.</td></tr>
         <tr><th>Closed world</th><td>Reflection, macros, overloads, implicit conversions, import cycles and unused names. Every name resolves to one definition at compile time.</td></tr>
         <tr><th>The task fixes the public names.</th><td>Different names for the same thing</td></tr>
-        <tr><th>The cell is the unit of edit.</th><td>Edit conflicts. The code store keeps each cell with its hash, and agents edit cells through the store, not lines of text. Two agents that change two different cells of one machine never collide. Git can keep the canonical text as an export.</td></tr>
+        <tr><th>The cell is the unit of edit.</th><td>Edit conflicts. The code store keeps each cell with its hash, and agents edit cells through the store. They never edit lines of text. Two agents that change two different cells of one machine never collide. Git can keep the canonical text as an export.</td></tr>
         <tr><th>Every cell must exist.</th><td>Forgotten cases. A new input gives one error per state that does not handle it, with a typed hole to fill.</td></tr>
         <tr><th>Interfaces have fixed parts.</th><td>Hand-written equality, ordering, hashing and byte encoding. The compiler derives them from the type. A method of an interface is pure.</td></tr>
       </tbody>
@@ -2125,7 +2126,7 @@ ul.plain li::marker { color: var(--muted); }
         <tr><th>Clocks</th><td>Each node clock stays within a bound of the control plane's time. The ID clock bound, for command IDs, is for example 5 minutes. The lease clock bound is shorter than the lease time. <code>now</code> never goes back for one instance. After a failover, the new writer starts at the last logged <code>now</code> or later.</td><td>A node that loses its time source stops its leases and answers fresh queries through the log. A client with a wrong clock gets a refusal at admission.</td></tr>
         <tr><th>The outside world</th><td>Requests from a durable machine to systems outside Borsuk are at least once, with a stable ID (section 6). A crash loses the requests of a <code>fn … uses</code> or an in-memory machine.</td><td>An outside system that does not drop copies by ID can act twice. Payments need an idempotency key. A contract probe tests this property against the test service, and a monitor checks the answers in production.</td></tr>
         <tr><th>Disk errors</th><td>The store reports every failed flush.</td><td>A failed flush ends the writer epoch at once. The shard stops, and a new writer recovers from a copy or from the last good log position. No step retries a failed flush (Rebello et al., 2020).</td></tr>
-        <tr><th>Transactions</th><td>All transactions of one durability name pass through one order log.</td><td>The order log limits the transaction rate, and across regions each transaction waits for a round trip between regions. It is a replicated log, so it is not a single point of failure, but its outage stops all transactions. Single-instance steps continue.</td></tr>
+        <tr><th>Transactions</th><td>All transactions of one durability name pass through one order log.</td><td>The order log limits the transaction rate, and across regions each transaction waits for a round trip between regions. It is a replicated log, so one failed node does not stop it. An outage of the whole log stops all transactions. Single-instance steps continue.</td></tr>
         <tr><th>Proofs</th><td>A proof covers the spec, under the listed assumptions. It says nothing about a law that the spec does not state.</td><td>A wrong spec gives a correct proof of the wrong thing. The law strength report, the witnesses and the boundary traces reduce this risk. They do not remove it.</td></tr>
         <tr><th>Evidence after a change</th><td>A change of the platform, the store settings or the checker makes the matching evidence records stale.</td><td>The stale records run again. A certificate checks again in seconds. A model check can take hours, so an infrastructure change can wait for it.</td></tr>
         <tr><th>Speed</th><td>The speed targets in section 8 are targets.</td><td>If an experiment misses a target, the memory or layout choice changes before v0.1 ships (section 14).</td></tr>
@@ -2134,7 +2135,7 @@ ul.plain li::marker { color: var(--muted); }
   </div>
   <div class="callout">
     <h3>The size of version 0.1</h3>
-    <p>Version 0.1 contains every agreed part: four durability names plus in-memory machines, four stores, transactions across shards, global protocols with proofs, SMT and Lean, model checks, per-person keys, live upgrades with migration proofs and zero-copy inputs. That is several years of work for a team. The number 0.1 means "the first version of the language contract", not "a small first release".</p>
+    <p>Version 0.1 contains every part of this design: four durability names plus in-memory machines, four stores, transactions across shards, global protocols with proofs, SMT and Lean, model checks, per-person keys, live upgrades with migration proofs and zero-copy inputs. That is several years of work for a team. The number 0.1 means the first version of the language contract. The release itself is large.</p>
   </div>
 </section>
 <!-- SCOPE -->
@@ -2144,7 +2145,7 @@ ul.plain li::marker { color: var(--muted); }
     <h2 id="h-scope">What version 0.1 contains</h2>
   </div>
   <div class="prose">
-    <p>Version 0.1 ships every agreed part. There is no plan of staged releases. A part that is not agreed has its keywords reserved. So a later version can add it without a change to the syntax of existing programs. Every log record, checkpoint, message and evidence record carries a format version field. So a later version can also add a new stored format next to the old one.</p>
+    <p>Version 0.1 contains every part of this design, in one release. A part outside this design has its keywords reserved. So a later version can add it without a change to the syntax of existing programs. Every log record, checkpoint, message and evidence record carries a format version field. So a later version can also add a new stored format next to the old one.</p>
   </div>
   <div class="frame scroll">
     <table class="tbl min880">
@@ -2171,7 +2172,7 @@ ul.plain li::marker { color: var(--muted); }
     <h2 id="h-open">What a measurement still decides</h2>
   </div>
   <div class="prose">
-    <p>Eight questions stay open, because the answer depends on numbers that nobody has measured. Each question has a fixed experiment, a fixed rule and a default. Each rule compares 95 % confidence intervals, not single numbers. A result that is not a clear pass or a clear fail runs once more with twice the sample. If it is still not clear, the default applies.</p>
+    <p>Eight questions stay open, because the answer depends on numbers that nobody has measured. Each question has a fixed experiment, a fixed rule and a default. Each rule compares 95 % confidence intervals. A result that is not a clear pass or a clear fail runs once more with twice the sample. If it is still not clear, the default applies.</p>
     <p>Five questions fix program text or stored bytes, so they close before the first public example and the first stored byte. They run in a fixed order, because each one changes the input of the next one.</p>
   </div>
   <ol class="flow" style="grid-template-columns: repeat(5, minmax(0, 1fr))">
@@ -2227,24 +2228,15 @@ ul.plain li::marker { color: var(--muted); }
   </div>
   <div class="verdict">
     <span class="vk">Answer</span>
-    <p>Yes. An independent check built one model of the language that satisfies every decision, and it found no two decisions that exclude each other. The open work is definition and measurement. No decision must change.</p>
+    <p>Yes. One model of the language satisfies every rule in this document, and no two rules exclude each other. What remains is measurement (section 14) and the risks below.</p>
   </div>
   <div class="prose">
-    <p>The check asked one question of every pair of parts. Can both hold at the same time? It sorted each finding into four classes. A <strong>blocker</strong> means no consistent language exists unless a decision changes. A <strong>repair</strong> means a rule was missing or a sentence was wrong, and a small rule fixes it. A <strong>risk</strong> means the design is consistent, but a measurement must show that it is fast or practical. <strong>Fine</strong> means the parts fit as written. This document already includes every repair.</p>
+    <p>The check took every pair of parts and asked whether both can hold at the same time. A <strong>conflict</strong> means that no consistent language exists. A <strong>risk</strong> means that the design is consistent, but a measurement must show that it is fast or practical. The check found no conflict.</p>
   </div>
-  <div class="twocol">
-    <figure class="frame">
-      <div class="bars" role="img" aria-label="Consistency findings: blocker 0, repair 29, risk 13, fine 9.">
-        <div class="bar"><span class="lab">Blocker</span><span class="trk"><i class="crit" style="width: 0%"></i></span><span class="n">0</span></div>
-        <div class="bar"><span class="lab">Repair</span><span class="trk"><i style="width: 100%"></i></span><span class="n">29</span></div>
-        <div class="bar"><span class="lab">Risk</span><span class="trk"><i style="width: 44.8%"></i></span><span class="n">13</span></div>
-        <div class="bar"><span class="lab">Fine</span><span class="trk"><i style="width: 31%"></i></span><span class="n">9</span></div>
-      </div>
-      <figcaption>51 findings of the first check. All 29 repairs are now part of the design text above. A second check of the final text found 0 blockers and 30 small repairs; this document includes them. Three of them defined constructs that had a name and no meaning: the transaction, the role of a global protocol, and escrow.</figcaption>
-    </figure>
+  <div class="solo">
     <figure class="frame">
       <svg class="dg" viewBox="0 0 520 300" role="img" aria-label="Why the parts fit. One pure step sits in the middle. Rules about what enters it, what leaves it, what the types allow, and what happens between steps surround it. No rule needs to look inside a running step.">
-        <rect class="box hl" x="185" y="115" width="150" height="70" rx="10"/>
+        <rect class="box hl" x="155" y="115" width="210" height="70" rx="10"/>
         <text class="tm big" x="260" y="146" text-anchor="middle">pure step</text>
         <text class="t2" x="260" y="166" text-anchor="middle">state + envelope → state + outputs</text>
         <rect class="box" x="10" y="20" width="220" height="70" rx="8"/>
@@ -2273,7 +2265,7 @@ ul.plain li::marker { color: var(--muted); }
   </div>
 
   <div class="sub">
-    <h3>Combinations that the check tested and found sound (a selection)</h3>
+    <h3>Combinations that hold (a selection)</h3>
     <div class="frame scroll">
       <table class="tbl min880">
         <thead><tr><th>Combination</th><th>Why it holds</th></tr></thead>
@@ -2291,7 +2283,7 @@ ul.plain li::marker { color: var(--muted); }
   </div>
 
   <div class="sub">
-    <h3>Risks: consistent, but not yet shown to be practical (the main seven of 13)</h3>
+    <h3>Risks that a measurement must settle</h3>
     <div class="frame scroll">
       <table class="tbl min880">
         <thead><tr><th>Risk</th><th>Why it matters</th><th>Measurement that settles it</th></tr></thead>
@@ -2307,7 +2299,7 @@ ul.plain li::marker { color: var(--muted); }
         </tbody>
       </table>
     </div>
-    <p class="cap">Five of the open measurements fix program text or stored bytes (section 14). They must close before the first public example and the first stored byte. About twenty decided parts assume the expected result of a measurement. For each one, the check lists what changes if the other result comes.</p>
+    <p class="cap">About twenty parts of the design assume the expected result of a measurement. Section 14 gives the default and the fallback steps for each question.</p>
   </div>
 
 </section>
@@ -2353,7 +2345,7 @@ ul.plain li::marker { color: var(--muted); }
   <p class="cap">Two v0.1 rules help every later use. Floating-point numbers give the same bits on every CPU, so a replay stays exact (section 8). Text is always valid UTF-8, with one pinned Unicode version per release.</p>
   <h3 style="margin-top:8px">User interfaces</h3>
   <div class="prose">
-    <p>Version 0.1 contains no user-interface feature. A later version can describe user interfaces, as a replacement for React and similar frameworks. The reason: a screen is a state machine. An event comes in, the state changes, and a pure function computes the new view. That is the step model of this language, and the Elm architecture showed that it works for interfaces. Version 0.1 builds nothing for this. It only states five rules, so that no decision blocks the path.</p>
+    <p>Version 0.1 contains no user-interface feature. A later version can describe user interfaces, as a replacement for React and similar frameworks. The reason is that a screen is a state machine. An event comes in, the state changes, and a pure function computes the new view. That is the step model of this language, and the Elm architecture showed that it works for interfaces. Version 0.1 builds nothing for this. It only states five rules, so that no decision blocks the path.</p>
   </div>
   <figure class="frame">
     <div class="scroll">
@@ -2572,7 +2564,7 @@ ul.plain li::marker { color: var(--muted); }
     <h2 id="h-app">Why every program fits the step model</h2>
   </div>
   <div class="prose">
-    <p>Borsuk claims that every program that a classical computer can run can be written as state machines with typed effects. This appendix checks that claim. The short answer: yes, when each state can hold typed data. Every real computer is finite, so the useful question is not "finite or not". It is whether the model splits a small control part from a large data part. Borsuk does that split.</p>
+    <p>Borsuk claims that every program that a classical computer can run can be written as state machines with typed effects. This appendix checks that claim. The short answer is yes, when each state can hold typed data. Every real computer is finite, so the useful question is not "finite or not". It is whether the model splits a small control part from a large data part. Borsuk does that split.</p>
     <p>Four terms help here. A <strong>sum type</strong> is a type with a fixed list of cases, like a Rust <code>enum</code>. The <strong>control skeleton</strong> of a machine is its states and edges with the data removed. <strong>Turing-complete</strong> means "can compute everything that any computer can compute". <strong>Rice's theorem</strong> says that no algorithm can decide a non-trivial property of the behavior of every program.</p>
   </div>
   <div class="frame scroll">
@@ -2616,7 +2608,7 @@ ul.plain li::marker { color: var(--muted); }
         <text class="t2" x="548" y="183">Complete and fast</text>
       </svg>
     </div>
-    <figcaption>Each outer class can compute more, and a checker can decide less about it. A Borsuk machine is finite, because its code states bounds, but its data space is far too large to list. So for a checker it sits in the outer class: facts about the data need a proof or a bounded check. The control skeleton stays in the innermost class, so the checker always explores it completely.</figcaption>
+    <figcaption>Each outer class can compute more, and a checker can decide less about it. A Borsuk machine is finite, because its code states bounds, but its data space is far too large to list. So for a checker it sits in the outer class, and facts about the data need a proof or a bounded check. The control skeleton stays in the innermost class, so the checker always explores it completely.</figcaption>
   </figure>
 
   <ul class="consq" aria-label="Consequences for Borsuk">
@@ -2635,7 +2627,7 @@ ul.plain li::marker { color: var(--muted); }
 
 
 <footer>
-  <p>Borsuk language design, version 0.1, 19 November 2026. Code is a notation sketch; the surface syntax is decided by a benchmark. Numbers marked as targets are targets, not measurements.</p>
+  <p>Borsuk language design, version 0.1, 19 November 2026. Code is a notation sketch; the surface syntax is decided by a benchmark. A number that the text calls a target has no measurement yet.</p>
 </footer>
 
 </main>
