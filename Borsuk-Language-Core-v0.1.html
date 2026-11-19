@@ -1246,7 +1246,7 @@ ul.plain li::marker { color: var(--muted); }
           <div><dt>Who may create</dt><dd><code>by</code> always means "sent by". In the protocol, <code>by ClinicAdmin</code> limits <code>Create</code> to senders with that role. The runtime refuses any other sender before the step.</dd></div>
           <div><dt>Group cell</dt><dd><code>Create</code> has the same answer in all live states, so the text writes it once, for the group <code>Live</code>.</dd></div>
           <div><dt>Impossible</dt><dd><code>(Absent, Fired)</code> can never happen, because no timer exists before <code>Free</code>. This is a proof duty for the checker (section 10).</dd></div>
-          <div><dt>Laws</dt><dd><code>holder_confirms</code> says that the holder who confirms in time wins. It holds only while the shard is up and not overloaded. "Within 30s" means less than 30 seconds of envelope time. A machine that refuses every <code>Hold</code> satisfies all three laws, so a full spec adds a law that a <code>Hold</code> on a new slot succeeds. This sketch leaves it out.</dd></div>
+          <div><dt>Laws</dt><dd><code>holder_confirms</code> says that the holder who confirms in time wins. It holds only while the shard is up and not overloaded. "Within 30s" means less than 30 seconds of envelope time. A machine that refuses every <code>Hold</code> satisfies all three laws. The witness rule still rejects it: a release needs a trace that produces each declared outcome, and such a machine never returns a <code>HoldToken</code> (section 10).</dd></div>
           <div><dt>Example</dt><dd>An <code>example</code> is an optional scenario with exact results. A team writes one only for critical logic that no law states. Tools show it as a trace.</dd></div>
           <div><dt>Size</dt><dd>About 100 lines. The text is long and strict on purpose. Agents write it. People read the table and the diagram.</dd></div>
         </dl>
@@ -1845,7 +1845,7 @@ ul.plain li::marker { color: var(--muted); }
   </div>
   <div class="prose">
     <p>A service runs for years, and its code changes every week. Between two steps, an instance holds only data. It has no stack, no call in progress and no pointer into code. So the time between two steps is a safe point to switch code.</p>
-    <p>The compiler gives each cell and each function a hash of its normalized text. A release lists the hashes that it needs, so old cells and new cells can live in one release. If a stored state type changes in any other way than a new last field with an initial value, the new version must supply a <code>migrate</code> function from the old form to the new form. A proof must show that the spec sees the same state before and after. For example, a migration that maps every booking to "free" fails that proof.</p>
+    <p>The compiler gives each cell and each function a hash of its normalized text. A release lists the hashes that it needs, so old cells and new cells can live in one release. A new last field with an initial value needs nothing. If a stored state type changes in any other way, the new version must supply a <code>migrate</code> function from the old form to the new form. A proof must show that the spec sees the same state before and after. For example, a migration that maps every booking to "free" fails that proof.</p>
   </div>
   <div class="prog-panel">
     <div>
@@ -1872,7 +1872,7 @@ ul.plain li::marker { color: var(--muted); }
   </div>
   <ol class="flow" style="grid-template-columns: repeat(5, minmax(0, 1fr))">
     <li><b>Ship</b><span>The new release contains the old code by hash. The old version stays active.</span></li>
-    <li><b>Check</b><span>If a state type changed, <code>migrate</code> runs on a checkpoint of every shard, in the background. The new code also runs in shadow: it gets live inputs, and the checker compares its results with the spec. Its outputs go nowhere.</span></li>
+    <li><b>Check</b><span>If a state type changed, <code>migrate</code> runs on a checkpoint of every shard, in the background. The new code also runs in shadow on live inputs. The tools compare its results with the spec and with the decisions that the old code logged. Its outputs go nowhere.</span></li>
     <li class="commit"><b>Activate</b><span>One <code>Activate</code> record in the log of each key range switches every copy and every later replay of that range at the same step.</span></li>
     <li><b>New forms</b><span>When every key range confirms its activation, machines start to send the new message forms.</span></li>
     <li><b>Finish</b><span>A <code>fn … uses</code> call that started on the old code finishes on the old code, within its deadline. An answer to a machine request that arrives after Activate runs on the new code.</span></li>
@@ -1914,6 +1914,10 @@ ul.plain li::marker { color: var(--muted); }
     <div class="ok"><b>Replays stay exact</b><span>Each log record maps to the hash of the code that produced it. So a replay after a swap runs the right code.</span></div>
   </div>
   <div class="callout">
+    <h3>Behavior diff</h3>
+    <p>For each cell and function with a new hash, the tools compare the old code with the new code. The result is "equal, proved", "equal within bounds", or a table of inputs with different decisions, outputs or answers. The shadow run adds the differences on live inputs. A refactor that is "equal, proved" needs no approval. Every behavior change needs a person's approval, also a change that the spec permits. This replaces regression tests.</p>
+  </div>
+  <div class="callout">
     <h3>What the migration proof does not cover</h3>
     <p>The spec sees only what callers can observe. A migration can lose a private field and still pass the proof. So a <code>migrate</code> must use every old field, or name it in a <code>drop</code> list. The compiler checks this rule, so no test is needed for it. The check step also reports how many instances changed in each field. When the spec itself changes, for example with a new command, the contract diff shows the change, and a person approves it (section 11).</p>
   </div>
@@ -1943,12 +1947,37 @@ ul.plain li::marker { color: var(--muted); }
       <thead><tr><th>Result</th><th>Meaning</th><th>Tool that produces it</th></tr></thead>
       <tbody>
         <tr><th><span class="chip yes">Proved</span></th><td>The law holds for every input and every order of events, under the listed assumptions.</td><td>A decision procedure: an algorithm that always answers yes or no for one narrow class of law. An SMT solver: a program that searches for a counterexample to a logical formula, and reports "none exists". Lean: a proof assistant, in which a person or an agent writes a proof that a small checker confirms.</td></tr>
-        <tr><th><span class="chip cond">Checked within bounds</span></th><td>The law holds for every case up to a stated size, for example 3 clients and 2 holds.</td><td>A model checker: it tries every order of events up to the bound.</td></tr>
-        <tr><th><span class="chip moot">Sampled</span></th><td>The law held in the runs that we tried.</td><td>Deterministic simulation with injected faults; replay of production logs</td></tr>
+        <tr><th><span class="chip cond">Checked within bounds</span></th><td>The law holds for every case up to a stated size, for example 3 clients and 2 holds. The record states each bound. The tools also run one step above each bound and report any change.</td><td>A model checker: it tries every order of events up to the bound.</td></tr>
+        <tr><th><span class="chip moot">Sampled</span></th><td>The law held in the runs that we tried. The record lists what the runs reached: cells, branches, law conditions, and each pair of fault and step phase. It also lists what no run reached.</td><td>Deterministic simulation with injected faults, also of a whole deployment; law monitors on the production log</td></tr>
         <tr><th><span class="chip no">Counterexample</span></th><td>The law fails. A trace shows how, and the trace replays exactly.</td><td>Any of the above</td></tr>
         <tr><th><span class="chip moot">Unknown</span></th><td>No tool gave an answer. The report shows the open claim.</td><td></td></tr>
       </tbody>
     </table>
+  </div>
+  <div class="sub">
+    <h3>The order of the tools</h3>
+    <ol class="flow" style="grid-template-columns: repeat(4, minmax(0, 1fr))">
+      <li><b>Refute</b><span>A bounded check and a directed random search look for a cheap counterexample first.</span></li>
+      <li><b>Decide</b><span>A decision procedure settles the laws of the simple forms.</span></li>
+      <li><b>SMT</b><span>The solver gets a query with only the cell and the definitions that its hash names. Small queries stay stable.</span></li>
+      <li class="commit"><b>Lean</b><span>An agent writes a proof for the hard rest. A small checker confirms it.</span></li>
+    </ol>
+    <p class="cap">Each step has a time budget. A failed step returns a counterexample or the open goal, and an agent uses it to repair the proof. Helper lemmas and invariants live in the evidence store beside the hashes, never in program text. In 2026, agents close proofs far more often with SMT-style tools than in Lean. One benchmark measured Dafny at 82 %, Verus at 44 % and Lean at 27 %. So Lean comes last.</p>
+  </div>
+  <div class="sub">
+    <h3>Checks of the spec itself</h3>
+    <p class="sec-lede">A proof shows that the code obeys the laws. It cannot show that the laws say enough. In 2026 studies, 22.7 % of specs that a verifier accepted had no postcondition. Programmers judged a wrong assertion correctly in only 49 % of cases. So the tools also measure each spec.</p>
+    <div class="frame scroll">
+      <table class="tbl min880">
+        <thead><tr><th>Check</th><th>What the tools do</th><th>What it finds</th></tr></thead>
+        <tbody>
+          <tr><th>Law strength</th><td>The checker makes small changes (mutants) to each cell: another target state, <code>reject</code> for <code>outcome</code>, a dropped output, an inverted <code>match</code>. It runs every law on each mutant. It also makes each law stronger and checks the unchanged code.</td><td>A cell that no law protects, and a law that could be stronger. A mutant that no caller can see gets the mark "not observable".</td></tr>
+          <tr><th>Witnesses</th><td>For each law, one trace that reaches its condition. For each <code>assume</code> line, one run that satisfies it. For each declared outcome and rejection, one trace that produces it.</td><td>A law that holds only because nothing reaches it. A release needs a witness for every law and every declared outcome. So the machine that refuses every <code>Hold</code> fails with no extra law.</td></tr>
+          <tr><th>Approval views</th><td>A fixed template prints each law as one sentence. A solver adds accepted and refused traces at the boundary, for example at 29.9 s and at 30 s for <code>within 30s</code>.</td><td>A law that means something other than the approver thinks. For a new or changed law, the approver marks each refused trace as correct.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="cap">The contract diff shows all three views, and also every added, changed or removed <code>example</code>. The approver sets the minimum law strength for each spec. A mutant table for a 20-cell machine costs about 80 small checks, and the results are cached by hash.</p>
   </div>
   <div class="callout">
     <h3>Two levels of checks</h3>
@@ -1962,17 +1991,34 @@ ul.plain li::marker { color: var(--muted); }
       <table class="tbl min880">
         <thead><tr><th>Kind of mistake</th><th>What covers it</th><th>Tests that the team writes</th></tr></thead>
         <tbody>
-          <tr><th>Wrong types, a forgotten case, a hidden effect, a misused value</th><td>Static rules in the compiler</td><td>None</td></tr>
-          <tr><th>A retry that runs twice, a reply before the data is safe, a stale timer, a lost message, a crash at any point</th><td>The runtime, with its own evidence, once for all programs</td><td>None</td></tr>
-          <tr><th>A broken business rule that a law states</th><td>The checker: a proof, a bounded model check, or a simulation with injected faults</td><td>None. The team writes the law in the spec, and a person approves it.</td></tr>
+          <tr><th>Wrong types, a forgotten case, a hidden effect, a misused value</th><td>Static rules in the compiler. A reference interpreter checks the compiler itself (below).</td><td>None</td></tr>
+          <tr><th>A retry that runs twice, a reply before the data is safe, a stale timer, a lost message, a crash at any point</th><td>The runtime, once for all programs, with evidence in three layers (below)</td><td>None</td></tr>
+          <tr><th>A broken business rule that a law states</th><td>The checker, plus the law strength report and a witness for each law. Law monitors check production.</td><td>None. The team writes the law, and a person approves it with the approval views.</td></tr>
+          <tr><th>A behavior change between releases</th><td>The behavior diff: old code against new code, statically and in the shadow run</td><td>None. A person approves each change.</td></tr>
           <tr><th>A migration that loses data</th><td>The migration proof and the <code>drop</code> rule</td><td>None</td></tr>
-          <tr><th>Critical logic that no law states, for example a price formula</th><td>An <code>example</code> with exact results</td><td>A few, for the critical parts only</td></tr>
-          <tr><th>An outside system that behaves differently from its contract</th><td>Nothing in the language can prove this.</td><td>End-to-end checks against the real system or its test service</td></tr>
-          <tr><th>A user journey across services</th><td>Nothing in the language can prove this.</td><td>End-to-end checks, and agent QA runs</td></tr>
+          <tr><th>Critical logic that no law states, for example a price formula</th><td>An <code>example</code> with exact results. The law strength report shows which cells need one.</td><td>A few, for the critical parts only</td></tr>
+          <tr><th>An outside system that behaves differently from its contract</th><td>Contract probes against its test service, and contract monitors on production answers</td><td>The contract of the effect, once</td></tr>
+          <tr><th>A user journey across services</th><td>Whole-deployment simulation inside the language. Grounded agent QA for the rest.</td><td>Journey statements, and a few checks of the user interface</td></tr>
         </tbody>
       </table>
     </div>
-    <p class="cap">Deterministic replay makes agent QA cheap. A QA run stores its inputs. A failure replays exactly, step by step, with the table and diagram views of each instance. The cost of this goal: the spec carries the weight that tests carry elsewhere. A wrong law gives a correct proof of the wrong thing, so a person approves every spec.</p>
+    <p class="cap">The cost of this goal: the spec carries the weight that tests carry elsewhere. A person is a weak last guard when the person sees only text. So the approval covers the law strength report, the witnesses and the boundary traces, not the text alone.</p>
+  </div>
+  <div class="twocol">
+    <div class="callout">
+      <h3>Checks in production</h3>
+      <p>The compiler turns each law and each effect contract into a <strong>monitor</strong>. A monitor is a registered reader of the log, like the audit archive. It runs on a copy node, off the hot path, and reads only the fields that its law names. A violation becomes a "counterexample" record with a replayable trace. One team that ran such monitors on 1,300 pods measured about 2 % CPU and found a bug that was one year old.</p>
+      <p>A <strong>contract probe</strong> runs generated request sequences against the test service of an outside system, before each release and on a schedule. One built-in probe sends each request twice with the same ID and checks that the second answer equals the first. Section 6 depends on that property.</p>
+    </div>
+    <div class="callout">
+      <h3>Simulation and the compiler</h3>
+      <p><code>simulate &lt;deployment&gt;</code> runs every machine of a deployment in one deterministic process. Each outside effect uses a fake machine that contract probes checked against the real system. The laws of specs and of global protocols run on the joint trace.</p>
+      <p>A <strong>reference interpreter</strong> runs the canonical text directly. The tools compare its state hash and outputs with the compiled step. They do this in simulation, and on 1 % of the steps that the checkpoint replay runs again. A difference is a compiler fault report. It never changes an answer.</p>
+    </div>
+  </div>
+  <div class="callout">
+    <h3>Evidence for the runtime</h3>
+    <p>The runtime has its own laws: for the gate, the decision table, tickets, epochs and transactions. Each law gets one of the five results in each of three layers. Layer 1 is a model with proofs. Layer 2 is a simulator that also reads the internal state of each copy. Layer 3 is black-box tests of the real binaries and client libraries, with real disks and networks and mixed versions during an upgrade. Layer 3 exists because a simulator replaces the clock, network and disk code that it does not test. An outside review is part of layer 3.</p>
   </div>
   <div class="twocol">
     <div class="callout">
@@ -1984,7 +2030,7 @@ ul.plain li::marker { color: var(--muted); }
         <li>the deployment platform, the store and its settings</li>
         <li>the checker that confirms certificates</li>
       </ul>
-      <p>A change to any of them makes the record stale. A <strong>certificate</strong> is a proof object that a small checker can confirm again, for example a Lean proof term or a replayable trace. With a certificate, the record does not name the solver that found the proof, so a solver upgrade keeps it valid. Without a certificate, the record names the solver version too. After a change, only the stale records run again.</p>
+      <p>The record also holds the law strength table and a witness trace for each law. It holds the coverage of each "sampled" result and the behavior diff of each changed hash. A change to any of the hashed parts makes the record stale. A <strong>certificate</strong> is a proof object that a small checker can confirm again, for example a Lean proof term or a replayable trace. With a certificate, the record does not name the solver that found the proof, so a solver upgrade keeps it valid. Without a certificate, the record names the solver version too. After a change, only the stale records run again.</p>
     </div>
     <div class="callout">
       <h3>Features that meet</h3>
@@ -2048,6 +2094,16 @@ ul.plain li::marker { color: var(--muted); }
     </table>
   </div>
   <p class="cap">The aim is one accepted text for one behavior. The normal forms remove the known variants. No compiler can prove that no other text with the same behavior exists, so the aim is a measured goal. For a fixed task, a test counts how many different accepted texts express the same behavior. The target is one. Without the normal forms, the small slot machine has tens of thousands of equal texts.</p>
+  <div class="callout">
+    <h3>Agent QA</h3>
+    <p>A QA agent explores the running system and proposes input sequences. A finding counts only with a replayable trace and a mechanical oracle. The oracle is a law, an <code>example</code>, a contract, or a journey statement that a person approved. A finding without an oracle is a question for a person. In one 2026 study, 80.2 % of agent-written test patches had a weak oracle or none, so the rule is strict.</p>
+    <ul class="plain">
+      <li>The QA agent cannot change code, specs or examples. The code agent cannot change an <code>example</code>; an example change goes through the contract diff.</li>
+      <li>QA starts from the approved journey statements, then explores freely.</li>
+      <li>The tools rank findings before a person sees them.</li>
+      <li>A finding inside the language never flakes, because the replay is exact.</li>
+    </ul>
+  </div>
 </section>
 
 <!-- LIMITS -->
@@ -2067,10 +2123,10 @@ ul.plain li::marker { color: var(--muted); }
         <tr><th>Availability</th><td><code>durable local</code> keys are unavailable while their node is down. Replicated names stay available while a majority of copies runs.</td><td>Callers get "unavailable", an admission result. They retry later with the same command ID.</td></tr>
         <tr><th>Control plane</th><td>The control plane assigns ranges and epochs, and keeps its own state with a consensus protocol on 3 or 5 nodes.</td><td>While it has no majority, running shards continue, but no range can move and no epoch can change. A shard whose node dies stays down until the control plane returns.</td></tr>
         <tr><th>Clocks</th><td>Each node clock stays within a bound of the control plane's time. The ID clock bound, for command IDs, is for example 5 minutes. The lease clock bound is shorter than the lease time. <code>now</code> never goes back for one instance. After a failover, the new writer starts at the last logged <code>now</code> or later.</td><td>A node that loses its time source stops its leases and answers fresh queries through the log. A client with a wrong clock gets a refusal at admission.</td></tr>
-        <tr><th>The outside world</th><td>Requests from a durable machine to systems outside Borsuk are at least once, with a stable ID (section 6). A crash loses the requests of a <code>fn … uses</code> or an in-memory machine.</td><td>An outside system that does not drop copies by ID can act twice. Payments need an idempotency key.</td></tr>
+        <tr><th>The outside world</th><td>Requests from a durable machine to systems outside Borsuk are at least once, with a stable ID (section 6). A crash loses the requests of a <code>fn … uses</code> or an in-memory machine.</td><td>An outside system that does not drop copies by ID can act twice. Payments need an idempotency key. A contract probe tests this property against the test service, and a monitor checks the answers in production.</td></tr>
         <tr><th>Disk errors</th><td>The store reports every failed flush.</td><td>A failed flush ends the writer epoch at once. The shard stops, and a new writer recovers from a copy or from the last good log position. No step retries a failed flush (Rebello et al., 2020).</td></tr>
         <tr><th>Transactions</th><td>All transactions of one durability name pass through one order log.</td><td>The order log limits the transaction rate, and across regions each transaction waits for a round trip between regions. It is a replicated log, so it is not a single point of failure, but its outage stops all transactions. Single-instance steps continue.</td></tr>
-        <tr><th>Proofs</th><td>A proof covers the spec, under the listed assumptions. It says nothing about a law that the spec does not state.</td><td>A wrong spec gives a correct proof of the wrong thing. This is why a person approves every spec.</td></tr>
+        <tr><th>Proofs</th><td>A proof covers the spec, under the listed assumptions. It says nothing about a law that the spec does not state.</td><td>A wrong spec gives a correct proof of the wrong thing. The law strength report, the witnesses and the boundary traces reduce this risk. They do not remove it.</td></tr>
         <tr><th>Evidence after a change</th><td>A change of the platform, the store settings or the checker makes the matching evidence records stale.</td><td>The stale records run again. A certificate checks again in seconds. A model check can take hours, so an infrastructure change can wait for it.</td></tr>
         <tr><th>Speed</th><td>The speed targets in section 8 are targets.</td><td>If an experiment misses a target, the memory or layout choice changes before v0.1 ships (section 14).</td></tr>
       </tbody>
@@ -2101,7 +2157,7 @@ ul.plain li::marker { color: var(--muted); }
         <tr><th>Durability</th><td>In memory, <code>durable local</code>, <code>durable quorum(f)</code>, <code>durable zonal</code>, <code>durable regional</code>; four stores; checkpoints and compaction; personal data with per-person keys; an audit archive</td><td></td></tr>
         <tr><th>Memory</th><td>Owned values, update in place, arenas per step, zero-copy reads of inputs, bounded collections</td><td></td></tr>
         <tr><th>Upgrades</th><td><code>migrate</code> with a proof, rollout in phases, <code>Activate</code> records, process handoff</td><td></td></tr>
-        <tr><th>Evidence</th><td>Laws in specs; decision procedures, SMT and Lean; certificates; model checks for each listed pair of features</td><td></td></tr>
+        <tr><th>Evidence</th><td>Laws in specs; a fixed order of tools (refute, decision procedure, SMT, Lean); certificates; model checks for each listed pair of features; law strength reports and witnesses; behavior diffs; coverage records; law and contract monitors; contract probes; whole-deployment simulation; a reference interpreter; runtime evidence in three layers; grounded agent QA</td><td></td></tr>
         <tr><th>Future paths</th><td>Five rules that keep later uses open (section 16): an open set of platforms, a runtime core that a host calls, a target-neutral intermediate representation (IR), host-neutral <code>Foreign</code> contracts, load units</td><td>A browser platform, a UI library, other platforms</td></tr>
       </tbody>
     </table>
@@ -2245,7 +2301,8 @@ ul.plain li::marker { color: var(--muted); }
           <tr><th>The effect type system</th><td>Its soundness proof for this language does not exist yet.</td><td>The Lean proof; if it fails, the surface stays and the formal semantics changes</td></tr>
           <tr><th>One order log for transactions</th><td>All transactions of one durability name pass through it.</td><td>Transactions per second, and the share of commands that are transactions</td></tr>
           <tr><th>Frozen instances</th><td>A transaction freezes its instances until every shard answers; a slow shard delays healthy ones.</td><td>Latency with one slow shard; a freeze deadline that aborts the transaction</td></tr>
-          <tr><th>Proof stability</th><td>A solver upgrade can turn "proved" into "unknown".</td><td>The share of proofs that stay proved over ten harmless edits and one solver upgrade</td></tr>
+          <tr><th>Proof stability</th><td>A solver upgrade can turn "proved" into "unknown". In 2026 studies, 1 % to 5 % of SMT queries were unstable, mostly because of definitions that the query did not need.</td><td>The share of proofs that stay proved over ten harmless edits and one solver upgrade. Queries hold only the cell and its hash closure.</td></tr>
+          <tr><th>Proof automation</th><td>A release needs "proved" for each proof duty. Agents close Lean proofs far less often than SMT proofs.</td><td>The share of proof duties that the first three tool steps close, on 20 machines. If it is too low, the forms that create the failing duties become narrower. The release rule stays.</td></tr>
           <tr><th>One text per behavior</th><td>The rules remove known variants; unknown variants can remain.</td><td>Count accepted texts per behavior for small machines; the target is one</td></tr>
         </tbody>
       </table>
@@ -2437,7 +2494,13 @@ ul.plain li::marker { color: var(--muted); }
         <div><dt>Evidence</dt><dd>The result of a check: proved, checked within bounds, sampled, counterexample or unknown.</dd></div>
         <div><dt>Certificate</dt><dd>A proof object that a small checker can confirm again without the tool that found it.</dd></div>
         <div><dt>Mode function M</dt><dd>The function in the language spec that computes the one accepted signature of a function from its body.</dd></div>
-        <div><dt>Contract diff</dt><dd>The list of changed inputs, answers and laws of a spec. A person approves it.</dd></div>
+        <div><dt>Contract diff</dt><dd>The list of changed inputs, answers, laws and examples of a spec, with the approval views. A person approves it.</dd></div>
+        <div><dt>Law strength report</dt><dd>The list of cell mutants that no law rejects, and of laws that the code also satisfies in a stronger form.</dd></div>
+        <div><dt>Witness</dt><dd>A trace that reaches the condition of a law, or produces a declared outcome. A release needs one for each.</dd></div>
+        <div><dt>Behavior diff</dt><dd>The comparison of old and new code for each changed hash. A person approves every difference.</dd></div>
+        <div><dt>Monitor</dt><dd>A log reader that checks one law or one effect contract on production records.</dd></div>
+        <div><dt>Contract probe</dt><dd>Generated request sequences against the test service of an outside system.</dd></div>
+        <div><dt>Journey statement</dt><dd>An approved statement of a user journey, which agent QA uses as an oracle.</dd></div>
         <div><dt><code>migrate</code></dt><dd>A function that converts stored state from an old type to a new type during an upgrade.</dd></div>
         <div><dt><code>Activate</code> record</dt><dd>A log record that switches one shard to a new release at one step.</dd></div>
         <div><dt>Code by hash</dt><dd>Each cell and function has a hash of its normalized text. A release lists the hashes it needs.</dd></div>
