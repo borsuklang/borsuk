@@ -5,7 +5,8 @@ Status: working plan. The design is in [`language-core-v0.1.html`](../design/lan
 ## What the milestones are
 
 - A 0.0.x version is an internal step in the build. It makes no public promise.
-- v0.1.0 is the first release. It contains every part of the design, in one release.
+- v0.1.0 is the first release. It contains every part of the design for one node, in one release.
+- v0.1 runs on one node. The parts for many nodes come after v0.1. See [After v0.1](#after-v01).
 - Q1 to Q8 are the eight measurement questions in section 14 of the design.
 
 ## Implementation stack
@@ -34,17 +35,31 @@ Until 0.0.4 decides the surface syntax, tests and examples use the core IR as S-
 | **0.0.5** | Effects | Request effects; the built-in effects `ConsoleIn`, `Send`, `Log`, `Entropy`; start forms; `fn … uses` lowering with deadlines and `all`; parameter forms; deployment bindings; `Foreign`; recursion through a wait; the runtime timer set that delivers `Fired`; many instances in the in-memory runtime | The Lean proof of effect soundness is complete. The HTTP handler example runs. | — |
 | **0.0.6** | Specs and checker | Law forms and the five results; tool order (refute, decide, SMT, Lean); certificates; evidence records; law strength report, witnesses, approval views, contract diff; deterministic simulation with the fault list; coverage records; interpreter oracle; interfaces with laws; `decreases` for recursion in pure functions | Every Slot law is proved. Each law and each outcome has a witness. No cell lacks law protection. | — |
 | **0.0.7** | Durable single node | Store contract; memory store and local-disk log; durable step and output gate; decision table, command IDs, windows, client numbering; timers and outbox across a crash; index-neutral checkpoints with replay; `durable local`; `final` states and life numbers | The first byte is stored. Crash simulation keeps every runtime law. First speed run against Rust on one node. | Q2 speed part, Q7 index |
-| **0.0.8** | Many nodes | Shards per core; key ranges; router; control plane with consensus; writer epochs and fencing; replicated log store and object-storage log store; `quorum`, `zonal`, `regional`; fresh and stale queries; overload rules | Failover works in simulation and on real nodes. Runtime evidence layer 3 starts. | Q6 scheduler |
+| **0.0.8** | Many cores | Shards per core on one node; key ranges; the router between cores; moves of key ranges between cores; overload rules | Shards on all cores of one node keep every runtime law in simulation and on a real node. Runtime evidence layer 3 starts. | Q6 scheduler |
 | **0.0.9** | Several instances | `pending` and `decide`; transactions with the order log; global protocols with role machines and the proof that no party waits forever; library protocols with `via`; escrow | The Transfer and Order examples run. Laws exist for each feature pair so far. | — |
-| **0.0.10** | Upgrades | Code store by hash; `migrate` with proof and `drop`; Activate records; rollout phases; process handoff; shadow run; behavior diff | A live upgrade with a migration runs in simulation and on real nodes. | Q8 code swap |
+| **0.0.10** | Upgrades | Code store by hash; `migrate` with proof and `drop`; Activate records; rollout phases; process handoff; shadow run; behavior diff | A live upgrade with a migration runs in simulation and on a real node. | Q8 code swap |
 | **0.0.11** | Personal data and compaction | `personal` fields; per-person keys and key store; erasure deadline; audit archive; compaction pacing, time floors, memory budget, `expire idle` | In simulation, an erasure reaches every copy within its deadline. | — |
 | **0.0.12** | Production and QA | Law and contract monitors; contract probes; whole-deployment simulation; agent QA tools; runtime evidence layer 3 complete; outside review | All monitors run on the reference deployment. The proof closure rate is measured. | Proof-automation risk |
 | **0.1.0** | The language contract | Everything above; all feature-pair laws; documentation | The speed targets are met. Every v0.1 gate passes. | — |
+
+## After v0.1
+
+v0.1 does not contain these parts. Their keywords are reserved in v0.1, and their design stays in sections 6 and 7 of the design.
+
+| Part | Content |
+|---|---|
+| Durability names | `durable quorum(f)`, `durable zonal`, `durable regional` |
+| Stores | The replicated log store and the object-storage log store |
+| Control plane | Consensus on 3 or 5 nodes, assignment of key ranges to nodes, writer epochs across nodes, node clock bounds |
+| Failover | Fencing of an old writer on another node, recovery of a key range on a new node |
+| Router | Requests to the node that owns a key range |
+| Queries | Fresh and stale queries on copies of a log |
 
 ## Reasons for the order
 
 - The five questions that fix program text or stored bytes close in the order that section 14 requires: 0.0.2, then 0.0.3, then 0.0.4.
 - No milestone stores a byte before 0.0.7. By then, every question that fixes bytes or hashes is closed.
+- Q1 measures bytes with no batch compression. If the store of 0.0.7 compresses its log batches, Q1 runs again before the first stored byte.
 - The effect proof comes at 0.0.5, not at the end. A late change to the effect rules would change program text.
 - The first speed run comes at 0.0.7, as soon as a durable path exists. This starts the memory fallback steps early, if they are necessary.
 

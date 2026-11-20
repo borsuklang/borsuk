@@ -1381,7 +1381,7 @@ ul.plain li::marker { color: var(--muted); }
     <h2 id="h-dur">What survives a crash, and how retries stay safe</h2>
   </div>
   <div class="prose">
-    <p>Each machine states how much failure its state must survive. The <strong>durability name</strong> sits on the machine line, for example <code>durable quorum(1) machine Slot …</code>, and it is part of the contract. The author of the code chooses it, as a person chooses a database. A machine with no durability name keeps its state in memory only.</p>
+    <p>Each machine states how much failure its state must survive. The <strong>durability name</strong> sits on the machine line, for example <code>durable quorum(1) machine Slot …</code>, and it is part of the contract. The author of the code chooses it, as a person chooses a database. A machine with no durability name keeps its state in memory only. Version 0.1 has in-memory machines and <code>durable local</code>. The other names are reserved for a later version (section 13).</p>
     <p>The program text never names a store. The deployment file picks one, and the build checks that the store covers every failure that the name lists. So the same program runs on a laptop with a local disk and on a cluster in three zones.</p>
   </div>
   <div class="frame scroll">
@@ -1585,6 +1585,10 @@ ul.plain li::marker { color: var(--muted); }
   <div class="sec-head">
     <p class="kick">7 · Instances</p>
     <h2 id="h-many">Millions of instances on many nodes</h2>
+  </div>
+  <div class="callout">
+    <h3>Not in v0.1: many nodes</h3>
+    <p>Version 0.1 runs on one node. Its shards run on the cores of that node and own key ranges, as this section describes. The parts for many nodes come after v0.1: the control plane with consensus, the move of a key range to another node, failover, copies of a log on other nodes, and fresh and stale queries on copies. The durability names <code>durable quorum(f)</code>, <code>durable zonal</code> and <code>durable regional</code> are reserved.</p>
   </div>
   <div class="prose">
     <p>A machine type such as <code>Slot</code> has one <strong>instance</strong> per key: <code>Slot(7)</code>, <code>Slot(8)</code> and so on. An instance exists logically for every key. The runtime loads it into memory when a message arrives, and removes it from memory when it is idle. The program names the type and the key, and never creates or addresses an instance by hand.</p>
@@ -2149,7 +2153,7 @@ ul.plain li::marker { color: var(--muted); }
   </div>
   <div class="callout">
     <h3>The size of version 0.1</h3>
-    <p>Version 0.1 contains every part of this design: four durability names plus in-memory machines, four stores, transactions across shards, global protocols with proofs, SMT and Lean, model checks, per-person keys, live upgrades with migration proofs and zero-copy inputs. That is several years of work for a team. The number 0.1 means the first version of the language contract. The release itself is large.</p>
+    <p>Version 0.1 contains every part of this design for one node: in-memory machines and <code>durable local</code>, the memory store and the local-disk log, transactions across shards, global protocols with proofs, SMT and Lean, model checks, per-person keys, live upgrades with migration proofs and zero-copy inputs. That is several years of work for a team. The number 0.1 means the first version of the language contract. The release itself is large. The parts for many nodes come after it (section 13).</p>
   </div>
 </section>
 <!-- SCOPE -->
@@ -2159,7 +2163,7 @@ ul.plain li::marker { color: var(--muted); }
     <h2 id="h-scope">What version 0.1 contains</h2>
   </div>
   <div class="prose">
-    <p>Version 0.1 contains every part of this design, in one release. A part outside this design has its keywords reserved. So a later version can add it without a change to the syntax of existing programs. Every log record, checkpoint, message and evidence record carries a format version field. So a later version can also add a new stored format next to the old one.</p>
+    <p>Version 0.1 contains every part of this design for one node, in one release. The parts for many nodes are reserved for later. A part outside version 0.1 has its keywords reserved. So a later version can add it without a change to the syntax of existing programs. Every log record, checkpoint, message and evidence record carries a format version field. So a later version can also add a new stored format next to the old one.</p>
   </div>
   <div class="frame scroll">
     <table class="tbl min880">
@@ -2167,9 +2171,9 @@ ul.plain li::marker { color: var(--muted); }
       <tbody>
         <tr><th>Code</th><td>Pure functions; effectful functions with deadlines and an <code>all</code> join; machines with a full table of cells and state groups; generics; interfaces with laws, derived or written; <code>decreases</code> for recursion in pure functions; strict IEEE 754 floating-point numbers; UTF-8 text with a pinned Unicode version</td><td></td></tr>
         <tr><th>Effects</th><td>Typed effects of two kinds, output and request; parameters that are pure, <code>uses caller</code> or <code>uses {E}</code>; bindings in the deployment file</td><td><code>handle</code> (effect handlers in code)</td></tr>
-        <tr><th>Commands</th><td>Retry-safe commands with four-part IDs, windows and a decision table; client leases; <code>pending</code> and <code>decide</code>; fresh and stale queries; escrow as a library protocol</td><td></td></tr>
+        <tr><th>Commands</th><td>Retry-safe commands with four-part IDs, windows and a decision table; client leases; <code>pending</code> and <code>decide</code>; queries on the writer; escrow as a library protocol</td><td>Fresh and stale queries on copies</td></tr>
         <tr><th>Several instances</th><td>Transactions across shards; global protocols, also as library protocols used with <code>via</code></td><td>Machines with several writers</td></tr>
-        <tr><th>Durability</th><td>In memory, <code>durable local</code>, <code>durable quorum(f)</code>, <code>durable zonal</code>, <code>durable regional</code>; four stores; checkpoints and compaction; personal data with per-person keys; an audit archive</td><td></td></tr>
+        <tr><th>Durability</th><td>In memory, <code>durable local</code>; the memory store and the local-disk log; checkpoints and compaction; personal data with per-person keys; an audit archive</td><td><code>durable quorum(f)</code>, <code>durable zonal</code>, <code>durable regional</code>; the replicated log store and the object-storage log store; the control plane with consensus; failover between nodes</td></tr>
         <tr><th>Memory</th><td>Owned values, update in place, arenas per step, zero-copy reads of inputs, bounded collections</td><td></td></tr>
         <tr><th>Upgrades</th><td><code>migrate</code> with a proof, rollout in phases, <code>Activate</code> records, process handoff</td><td></td></tr>
         <tr><th>Evidence</th><td>Laws in specs; a fixed order of tools (refute, decision procedure, SMT, Lean); certificates; model checks for each listed pair of features; law strength reports and witnesses; behavior diffs; coverage records; law and contract monitors; contract probes; whole-deployment simulation; a reference interpreter; runtime evidence in three layers; grounded agent QA</td><td></td></tr>

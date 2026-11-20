@@ -1,0 +1,1501 @@
+<title>Borsuk Design and Roadmap</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=Space+Grotesk:wght@500;600;700&display=swap">
+<style>
+/* Layout: sticky section bar on top; one 1180px column; prose capped near 70ch; figures use the full width and scroll inside their own frame on phones. */
+:root {
+  --bg: #f3f5f8;
+  --surface: #ffffff;
+  --band: #e9edf2;
+  --code-bg: #edf0f5;
+  --ink: #111823;
+  --ink-2: #3a4351;
+  --muted: #667080;
+  --line: #d5dbe3;
+  --line-strong: #b4bdc9;
+  --ref: #a9b2be;
+  --focus: #2a78d6;
+  --accent-text: #1c5cab;
+  --kw: #1c5cab;
+  --stc: #9a3f12;
+  --crit: #d03b3b;
+  --t-lang: #2a78d6;
+  --t-exec: #eb6834;
+  --t-spec: #1baf7a;
+  --t-agent: #eda100;
+  --f-display: "Space Grotesk", "IBM Plex Sans", system-ui, sans-serif;
+  --f-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1217;
+    --surface: #171b21;
+    --band: #1d2229;
+    --code-bg: #12161c;
+    --ink: #e6e9ee;
+    --ink-2: #c3c9d2;
+    --muted: #8f99a6;
+    --line: #2b323c;
+    --line-strong: #414a57;
+    --ref: #4b5462;
+    --focus: #3987e5;
+    --accent-text: #86b6ef;
+    --kw: #86b6ef;
+    --stc: #f0a27f;
+    --crit: #e66767;
+    --t-lang: #3987e5;
+    --t-exec: #d95926;
+    --t-spec: #199e70;
+    --t-agent: #c98500;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1217;
+  --surface: #171b21;
+  --band: #1d2229;
+  --code-bg: #12161c;
+  --ink: #e6e9ee;
+  --ink-2: #c3c9d2;
+  --muted: #8f99a6;
+  --line: #2b323c;
+  --line-strong: #414a57;
+  --ref: #4b5462;
+  --focus: #3987e5;
+  --accent-text: #86b6ef;
+  --kw: #86b6ef;
+  --stc: #f0a27f;
+  --crit: #e66767;
+  --t-lang: #3987e5;
+  --t-exec: #d95926;
+  --t-spec: #199e70;
+  --t-agent: #c98500;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--f-body);
+  font-size: 15.5px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+body::before {
+  content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px);
+  z-index: 10; background: var(--bg);
+}
+h1, h2, h3 { font-family: var(--f-display); text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(40px, 6vw, 64px); font-weight: 700; letter-spacing: -0.02em; line-height: 1; }
+h2 { font-size: clamp(23px, 2.6vw, 28px); font-weight: 600; letter-spacing: -0.01em; line-height: 1.2; }
+h3 { font-size: 17px; font-weight: 600; line-height: 1.3; }
+p { margin: 0; }
+code, .mono { font-family: var(--f-mono); font-size: 0.88em; }
+a { color: var(--accent-text); text-underline-offset: 3px; text-decoration-thickness: 1px; }
+a:focus-visible, button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 3px; }
+ul, ol { margin: 0; }
+
+/* Sticky section bar */
+.toc {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5;
+  background: color-mix(in srgb, var(--bg) 90%, transparent);
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--line);
+}
+.toc-in {
+  max-width: 1180px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 8px;
+  display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none;
+}
+.toc-in::-webkit-scrollbar { display: none; }
+.toc a {
+  flex: none; padding: 5px 10px; border-radius: 6px;
+  font-size: 13px; font-weight: 500; color: var(--muted); text-decoration: none; white-space: nowrap;
+}
+.toc a:hover { color: var(--ink); background: var(--band); }
+.toc a[aria-current="true"] { color: var(--ink); background: var(--band); }
+.toc .brand { font-family: var(--f-display); font-weight: 700; color: var(--ink); padding-right: 14px; }
+
+.wrap {
+  max-width: 1180px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 44px 72px;
+  display: grid; gap: 72px;
+}
+section { display: grid; gap: 20px; min-width: 0; scroll-margin-top: 64px; }
+.sec-head { display: grid; gap: 8px; }
+.sec-head .kick { font-family: var(--f-mono); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.prose { display: grid; gap: 12px; max-width: 72ch; color: var(--ink-2); }
+.prose strong { color: var(--ink); font-weight: 600; }
+.sub { display: grid; gap: 14px; min-width: 0; }
+
+/* Hero */
+.hero { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 32px; align-items: center; }
+.hero-text { display: grid; gap: 16px; }
+.eyebrow { font-family: var(--f-mono); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.tagline { font-family: var(--f-display); font-size: clamp(20px, 2.4vw, 26px); font-weight: 500; line-height: 1.25; color: var(--ink-2); text-wrap: balance; }
+.lede { font-size: 17px; color: var(--ink-2); max-width: 62ch; }
+.status { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.status li {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 5px 11px 5px 6px; border: 1px solid var(--line); border-radius: 999px;
+  background: var(--surface); font-size: 13.5px;
+}
+.status .k {
+  font-family: var(--f-mono); font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+  padding: 2px 7px; border-radius: 999px; background: var(--band); color: var(--ink-2);
+}
+.namenote { font-size: 13.5px; color: var(--muted); }
+.hero-fig { margin: 0; display: grid; gap: 8px; }
+.hero-fig .frame { padding: 12px 10px 6px; }
+
+/* Shared figure frame */
+figure { margin: 0; min-width: 0; }
+.frame { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px; display: grid; gap: 12px; min-width: 0; }
+.scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; min-width: 0; }
+figcaption, .cap { font-size: 13.5px; color: var(--muted); max-width: 84ch; }
+
+/* Diagrams */
+.dg { display: block; width: 100%; height: auto; color: var(--muted); }
+.dg .box { fill: var(--surface); stroke: var(--line-strong); stroke-width: 1.5; }
+.dg .box.hl { fill: color-mix(in srgb, var(--focus) 13%, var(--surface)); stroke: var(--focus); }
+.dg .box.ext { fill: var(--band); stroke: var(--line-strong); stroke-dasharray: 4 3; }
+.dg .box.ghost { fill: none; stroke: var(--line-strong); stroke-dasharray: 4 3; }
+.dg .box.read { fill: color-mix(in srgb, var(--focus) 10%, var(--surface)); stroke: var(--focus); }
+.dg .t1 { fill: var(--ink); font: 600 12.5px var(--f-body); }
+.dg .t2 { fill: var(--muted); font: 400 11px var(--f-body); }
+.dg .tm { fill: var(--ink); font: 500 12.5px var(--f-mono); }
+.dg .lbl { fill: var(--ink-2); font: 500 11.5px var(--f-mono); }
+.dg .lbl.acc { fill: var(--accent-text); font-weight: 600; }
+.dg .lbl.crit { fill: var(--crit); font-weight: 600; }
+.dg .lbl.mut { fill: var(--muted); }
+.dg .wire { fill: none; stroke: var(--muted); stroke-width: 1.5; stroke-linejoin: round; }
+.dg .wire.acc { stroke: var(--focus); stroke-width: 1.75; }
+.dg .wire.lost { stroke: var(--crit); stroke-dasharray: 5 4; }
+.dg .xmark { stroke: var(--crit); stroke-width: 2.25; stroke-linecap: round; }
+.dg .life { stroke: var(--line-strong); stroke-width: 1; stroke-dasharray: 3 4; }
+.dg .bracket { fill: none; stroke: var(--ink-2); stroke-width: 1.5; }
+.dg .crash { fill: color-mix(in srgb, var(--crit) 12%, var(--surface)); stroke: var(--crit); stroke-width: 1.25; }
+.dg .init { fill: var(--muted); }
+
+/* Overview */
+.flow { list-style: none; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; counter-reset: step; }
+.flow li {
+  counter-increment: step; position: relative;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+  padding: 14px 14px 14px; display: grid; gap: 4px; align-content: start;
+}
+.flow li::before {
+  content: counter(step); font-family: var(--f-mono); font-size: 12px; font-weight: 600;
+  width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--band); color: var(--ink-2); margin-bottom: 4px;
+}
+.flow li b { font-weight: 600; font-size: 14.5px; }
+.flow li span { font-size: 13.5px; color: var(--ink-2); }
+.flow li.lost::before { background: color-mix(in srgb, var(--crit) 16%, var(--surface)); color: var(--crit); }
+.goal {
+  border-left: 3px solid var(--focus); padding: 4px 0 4px 16px; max-width: 72ch;
+  font-family: var(--f-display); font-size: 19px; font-weight: 500; line-height: 1.4; color: var(--ink);
+}
+.guar { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.guar li { font-size: 13.5px; padding: 4px 10px; border-radius: 6px; background: var(--band); color: var(--ink-2); }
+.three { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.three > div { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px; display: grid; gap: 6px; align-content: start; }
+.three p { font-size: 14.5px; color: var(--ink-2); }
+.facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--surface); margin: 0; }
+.facts > div { padding: 14px 16px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); display: grid; gap: 3px; align-content: start; }
+.facts > div:nth-child(3n) { border-right: 0; }
+.facts > div:nth-last-child(-n+3) { border-bottom: 0; }
+.facts dt { font-family: var(--f-mono); font-size: 11px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted); }
+.facts dd { margin: 0; font-size: 14.5px; color: var(--ink); }
+
+/* Rules */
+.rules { display: grid; gap: 10px; }
+.rule {
+  display: grid; grid-template-columns: 64px minmax(0, 1.3fr) minmax(0, 1fr); gap: 20px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 18px;
+}
+.rule .rid { font-family: var(--f-display); font-size: 30px; font-weight: 700; color: var(--ink-2); line-height: 1; }
+.rule h3 { margin-bottom: 6px; }
+.rule p { font-size: 14.5px; color: var(--ink-2); }
+.rule .ex { font-size: 14px; color: var(--ink-2); background: var(--band); border-radius: 8px; padding: 10px 12px; align-self: start; }
+.rule .ex b { display: block; font-family: var(--f-mono); font-size: 11px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted); margin-bottom: 3px; }
+.defs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.defs > div { border-top: 2px solid var(--line-strong); padding-top: 10px; display: grid; gap: 4px; }
+.defs b { font-weight: 600; font-size: 14.5px; }
+.defs span { font-size: 14px; color: var(--ink-2); }
+
+/* Code */
+.codegrid { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+pre.code {
+  margin: 0; padding: 16px 18px; border-radius: 10px; background: var(--code-bg); border: 1px solid var(--line);
+  font-family: var(--f-mono); font-size: 13px; line-height: 1.65; color: var(--ink); overflow-x: auto; tab-size: 4;
+}
+.code .k { color: var(--kw); font-weight: 600; }
+.code .s { color: var(--stc); }
+.code .c { color: var(--muted); font-style: italic; }
+.codehead { display: flex; justify-content: space-between; gap: 10px; font-family: var(--f-mono); font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+.notes { list-style: none; padding: 0; display: grid; gap: 12px; }
+.notes li { display: grid; gap: 3px; }
+.notes code { font-size: 12.5px; color: var(--ink); background: var(--band); padding: 1px 6px; border-radius: 4px; justify-self: start; overflow-wrap: anywhere; }
+.notes span { font-size: 14.5px; color: var(--ink-2); }
+.cands { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.cand { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px; display: grid; gap: 10px; align-content: start; }
+.cand p { font-size: 14.5px; color: var(--ink-2); }
+.cand pre.code { font-size: 12.5px; padding: 12px 14px; }
+
+/* Tables */
+.tbl { width: 100%; border-collapse: collapse; font-size: 14.5px; }
+.tbl th, .tbl td { text-align: left; padding: 11px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.tbl thead th { font: 600 11.5px var(--f-mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); padding-top: 4px; }
+.tbl tbody th { font-weight: 600; color: var(--ink); }
+.tbl td { color: var(--ink-2); }
+.tbl tbody tr:last-child th, .tbl tbody tr:last-child td { border-bottom: 0; }
+.tbl.min640 { min-width: 640px; }
+.tbl.min720 { min-width: 720px; }
+.tbl .nowrap { white-space: nowrap; }
+
+/* Evidence */
+.ev { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+.evc { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px; display: grid; gap: 8px; align-content: start; }
+.evc .badge { justify-self: start; font-family: var(--f-mono); font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; padding: 3px 8px; border-radius: 999px; }
+.evc.sup .badge { background: color-mix(in srgb, var(--t-spec) 18%, var(--surface)); color: var(--ink); }
+.evc.neg .badge { background: color-mix(in srgb, var(--crit) 16%, var(--surface)); color: var(--ink); }
+.evc.unk .badge { background: var(--band); color: var(--ink-2); }
+.evc h3 { font-size: 15.5px; }
+.evc p { font-size: 13.5px; color: var(--ink-2); }
+.evc .use { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 8px; }
+.scope { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); }
+.scope .bar { flex: 1; height: 6px; border-radius: 3px; background: var(--band); position: relative; overflow: hidden; }
+.scope .bar i { position: absolute; inset: 0 auto 0 0; background: var(--t-spec); border-radius: 3px; }
+.key { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.key span { font-family: var(--f-mono); font-size: 12.5px; padding: 4px 9px; border-radius: 6px; background: var(--surface); border: 1px solid var(--line-strong); color: var(--ink); }
+.key i { font-style: normal; color: var(--muted); font-family: var(--f-mono); }
+.callout { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; display: grid; gap: 8px; }
+.callout h3 { font-size: 15.5px; }
+.callout p { font-size: 14.5px; color: var(--ink-2); max-width: 80ch; }
+.twocol { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+
+/* Phase graph */
+#graph { min-width: 900px; }
+#graph .lane { fill: var(--band); }
+#graph .lane-label { fill: var(--ink-2); font: 600 12.5px var(--f-body); }
+#graph .axis { stroke: var(--line-strong); stroke-width: 1.5; }
+#graph .axis-label { fill: var(--muted); font: 500 11.5px var(--f-mono); letter-spacing: 0.04em; }
+#graph .edge { fill: none; stroke: var(--muted); stroke-width: 1.5; stroke-linejoin: round; marker-end: url(#g-ah); transition: opacity .15s, stroke .15s; }
+#graph .node rect { stroke-width: 1.75; }
+#graph .node .pid { fill: var(--muted); font: 600 11px var(--f-mono); letter-spacing: 0.04em; }
+#graph .node .nm { fill: var(--ink); font: 600 12.5px var(--f-body); }
+#graph .node { cursor: pointer; transition: opacity .15s; }
+#graph .node:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
+#graph .node.lang rect { fill: color-mix(in srgb, var(--t-lang) 14%, var(--surface)); stroke: var(--t-lang); }
+#graph .node.exec rect { fill: color-mix(in srgb, var(--t-exec) 14%, var(--surface)); stroke: var(--t-exec); }
+#graph .node.spec rect { fill: color-mix(in srgb, var(--t-spec) 14%, var(--surface)); stroke: var(--t-spec); }
+#graph .node.agent rect { fill: color-mix(in srgb, var(--t-agent) 16%, var(--surface)); stroke: var(--t-agent); }
+#graph .sw.lang { fill: var(--t-lang); }
+#graph .sw.exec { fill: var(--t-exec); }
+#graph .sw.spec { fill: var(--t-spec); }
+#graph .sw.agent { fill: var(--t-agent); }
+#graph.focus .node:not(.on) { opacity: 0.32; }
+#graph.focus .edge:not(.on) { opacity: 0.14; }
+#graph .edge.on { stroke: var(--ink); stroke-width: 2; marker-end: url(#g-ah-on); }
+
+/* Phase cards */
+.phases { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.phase {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+  padding: 18px 18px 16px; display: flex; flex-direction: column; gap: 12px; min-width: 0; scroll-margin-top: 72px;
+}
+.phase:target { border-color: var(--focus); box-shadow: 0 0 0 1px var(--focus); }
+.ph-head { display: grid; grid-template-columns: auto 1fr; column-gap: 12px; row-gap: 2px; align-items: baseline; }
+.ph-head .pid { grid-row: span 2; font-family: var(--f-mono); font-weight: 600; font-size: 13px; padding: 3px 7px; border-radius: 6px; background: var(--band); color: var(--ink-2); align-self: start; }
+.track { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--muted); }
+.track::before { content: ""; width: 9px; height: 9px; border-radius: 2px; background: var(--sw); flex: none; }
+.phase[data-track="lang"], .c-lang { --sw: var(--t-lang); }
+.phase[data-track="exec"], .c-exec { --sw: var(--t-exec); }
+.phase[data-track="spec"], .c-spec { --sw: var(--t-spec); }
+.phase[data-track="agent"], .c-agent { --sw: var(--t-agent); }
+.phase ul { padding-left: 18px; display: grid; gap: 5px; color: var(--ink-2); font-size: 14.5px; }
+.phase li::marker { color: var(--muted); }
+.gate { margin-top: auto; background: var(--band); border-radius: 8px; padding: 11px 12px; display: grid; gap: 6px; font-size: 14px; }
+.gate-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 10px; }
+.gate-k { font-family: var(--f-mono); font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-2); }
+.prog { font-family: var(--f-mono); font-size: 11.5px; color: var(--muted); }
+.needs { font-size: 13px; color: var(--muted); }
+.needs a { font-family: var(--f-mono); font-weight: 600; color: var(--ink-2); text-decoration-color: var(--line-strong); }
+
+/* Rule matrix */
+.matrix { border-collapse: separate; border-spacing: 0; width: 100%; min-width: 720px; }
+.matrix th, .matrix td { padding: 0; text-align: center; border-bottom: 1px solid var(--line); }
+.matrix thead th { padding: 6px 4px 10px; font: 600 12px var(--f-mono); color: var(--ink-2); vertical-align: bottom; }
+.matrix thead th a { color: inherit; text-decoration: none; display: inline-grid; gap: 5px; justify-items: center; }
+.matrix thead th a::after { content: ""; width: 18px; height: 4px; border-radius: 2px; background: var(--sw); }
+.matrix thead th.rule-h { text-align: left; font-family: var(--f-body); color: var(--muted); font-weight: 500; }
+.matrix tbody th { text-align: left; padding: 10px 12px 10px 0; font-weight: 500; font-size: 14px; white-space: nowrap; }
+.matrix tbody th .lid { font-family: var(--f-mono); font-weight: 600; color: var(--muted); margin-right: 8px; }
+.matrix td { height: 44px; width: 7.5%; }
+.matrix tbody tr:last-child th, .matrix tbody tr:last-child td { border-bottom: 0; }
+.dot { width: 30px; height: 30px; padding: 0; border: 0; background: transparent; cursor: pointer; display: inline-grid; place-items: center; border-radius: 50%; }
+.dot::before { content: ""; width: 12px; height: 12px; border-radius: 50%; background: var(--ink-2); transition: box-shadow .12s, background .12s; }
+.dot:hover::before { box-shadow: 0 0 0 4px color-mix(in srgb, var(--focus) 25%, transparent); }
+.dot[aria-pressed="true"]::before { background: var(--focus); box-shadow: 0 0 0 4px color-mix(in srgb, var(--focus) 30%, transparent); }
+.note { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; padding: 10px 12px; border-radius: 8px; background: var(--band); font-size: 14px; color: var(--ink-2); min-height: 42px; }
+.note b { font-family: var(--f-mono); font-size: 12.5px; color: var(--ink); }
+
+/* Performance */
+.perf { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+#perf { min-width: 600px; }
+#perf .grid { stroke: var(--line); stroke-width: 1; }
+#perf .tick { fill: var(--muted); font: 500 11.5px var(--f-mono); }
+#perf .rl { fill: var(--ink); font: 600 12.5px var(--f-body); }
+#perf .rs { fill: var(--muted); font: 400 11.5px var(--f-body); }
+#perf .val { fill: var(--ink-2); font: 600 12px var(--f-mono); }
+#perf .base { stroke: var(--ink-2); stroke-width: 1.5; stroke-dasharray: 4 3; }
+#perf .bar-ref { fill: var(--ref); }
+#perf .bar-tgt { fill: var(--t-lang); }
+.gates { margin: 0; display: grid; gap: 10px; }
+.gates .g { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; display: grid; gap: 2px; }
+.gates dt { font-size: 13px; color: var(--muted); }
+.gates dd { margin: 0; font-family: var(--f-display); font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.gates dd small { font-family: var(--f-body); font-size: 13px; font-weight: 400; color: var(--ink-2); display: block; }
+
+/* Agents */
+.prompt {
+  margin: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px;
+  display: grid; gap: 8px;
+}
+.prompt q { font-family: var(--f-display); font-size: clamp(18px, 2vw, 22px); font-weight: 500; line-height: 1.35; quotes: "\201C" "\201D"; color: var(--ink); }
+.prompt cite { font-style: normal; font-size: 13px; color: var(--muted); }
+.steps { list-style: none; padding: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0; counter-reset: s; }
+.steps li { counter-increment: s; position: relative; padding: 0 12px 0 0; display: grid; gap: 6px; align-content: start; }
+.steps li::before {
+  content: counter(s); font-family: var(--f-mono); font-size: 12px; font-weight: 600;
+  width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--surface); border: 1.5px solid var(--focus); color: var(--ink); position: relative; z-index: 1;
+}
+.steps li::after { content: ""; position: absolute; top: 13px; left: 26px; right: 0; height: 1.5px; background: var(--line-strong); }
+.steps li:last-child::after { display: none; }
+.steps b { font-size: 14.5px; font-weight: 600; }
+.steps span { font-size: 13.5px; color: var(--ink-2); }
+
+/* Limits, glossary */
+.limits { list-style: none; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.limits li { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px 14px 42px; position: relative; font-size: 14.5px; color: var(--ink-2); }
+.limits li::before { content: ""; position: absolute; left: 16px; top: 20px; width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--muted); }
+.limits b { color: var(--ink); font-weight: 600; }
+.gloss { margin: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px 24px; }
+.gloss > div { display: grid; gap: 2px; align-content: start; border-top: 1px solid var(--line); padding-top: 10px; }
+.gloss dt { font-weight: 600; font-size: 14.5px; }
+.gloss dd { margin: 0; font-size: 14px; color: var(--ink-2); }
+footer { font-size: 13.5px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 18px; display: grid; gap: 6px; max-width: 90ch; }
+
+@media (max-width: 980px) {
+  .hero { grid-template-columns: minmax(0, 1fr); }
+  .ev { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .steps { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+  .steps li { grid-template-columns: 26px minmax(0, 1fr); column-gap: 12px; padding: 0; }
+  .steps li::before { grid-row: span 2; }
+  .steps li::after { display: none; }
+  .gloss { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 860px) {
+  .perf, .codegrid { grid-template-columns: minmax(0, 1fr); }
+  .rule { grid-template-columns: 48px minmax(0, 1fr); }
+  .rule .ex { grid-column: 2; }
+  .facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .facts > div:nth-child(3n) { border-right: 1px solid var(--line); }
+  .facts > div:nth-child(2n) { border-right: 0; }
+  .facts > div:nth-last-child(-n+3) { border-bottom: 1px solid var(--line); }
+  .facts > div:nth-last-child(-n+2) { border-bottom: 0; }
+  .flow { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .three, .defs { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 760px) {
+  .phases, .cands, .twocol, .limits { grid-template-columns: minmax(0, 1fr); }
+  .wrap { gap: 56px; padding-block: 28px 56px; }
+}
+@media (max-width: 520px) {
+  .flow, .ev, .gloss, .facts { grid-template-columns: minmax(0, 1fr); }
+  .facts > div { border-right: 0 !important; border-bottom: 1px solid var(--line) !important; }
+  .facts > div:last-child { border-bottom: 0 !important; }
+  .rule { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .rule .ex { grid-column: auto; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  * { transition: none !important; }
+}
+</style>
+
+<nav class="toc" aria-label="Sections">
+  <div class="toc-in">
+    <a class="brand" href="#top">Borsuk</a>
+    <a href="#overview">Overview</a>
+    <a href="#rules">Rules</a>
+    <a href="#example">Example</a>
+    <a href="#architecture">Architecture</a>
+    <a href="#evidence">Evidence</a>
+    <a href="#acceptance">Acceptance</a>
+    <a href="#roadmap">Roadmap</a>
+    <a href="#performance">Performance</a>
+    <a href="#agents">Agents</a>
+    <a href="#decisions">Decisions</a>
+    <a href="#limits">Limits</a>
+    <a href="#prior-art">Prior art</a>
+    <a href="#glossary">Glossary</a>
+  </div>
+</nav>
+
+<div class="wrap">
+
+  <!-- HERO -->
+  <header class="hero" id="top">
+    <div class="hero-text">
+      <p class="eyebrow">Language design and build plan</p>
+      <h1>Borsuk</h1>
+      <p class="tagline">An FSM-first programming language for verified distributed systems</p>
+      <p class="lede">Borsuk is a proposed language for stateful software that runs on many machines. A program is a set of explicit state machines. Each machine has typed inputs, private state, and a public contract that a checker can verify. This page describes the design and the ten phases that build it.</p>
+      <ul class="status">
+        <li><span class="k">Design</span>Draft of 18 November 2026</li>
+        <li><span class="k">Build</span>Not started</li>
+        <li><span class="k">Measured</span>Nothing yet</li>
+      </ul>
+      <p class="namenote">The name honors <a href="https://mathshistory.st-andrews.ac.uk/Biographies/Borsuk/" target="_blank" rel="noopener">Karol Borsuk</a>, a Polish mathematician known for his work in topology.</p>
+    </div>
+    <figure class="hero-fig">
+      <div class="frame">
+        <svg class="dg" viewBox="0 0 420 210" role="img" aria-label="State diagram of PeakTracker. It starts in Empty. Sample moves it to Seen. In Seen, Sample keeps the maximum. Read replies None in Empty and Some of the maximum in Seen.">
+          <defs>
+            <marker id="h-ah" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto" style="color: var(--muted)"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"></path></marker>
+          </defs>
+          <circle class="init" cx="14" cy="110" r="5"></circle>
+          <path class="wire" d="M19,110 H50" marker-end="url(#h-ah)"></path>
+          <text class="lbl mut" x="34" y="100" text-anchor="middle">init</text>
+          <rect class="box hl" x="50" y="90" width="84" height="40" rx="20"></rect>
+          <text class="tm" x="92" y="114" text-anchor="middle">Empty</text>
+          <rect class="box hl" x="250" y="90" width="120" height="40" rx="20"></rect>
+          <text class="tm" x="310" y="114" text-anchor="middle">Seen(hi)</text>
+          <path class="wire" d="M134,110 H250" marker-end="url(#h-ah)"></path>
+          <text class="lbl" x="192" y="102" text-anchor="middle">Sample(x)</text>
+          <path class="wire" d="M290,90 C290,42 330,42 330,90" marker-end="url(#h-ah)"></path>
+          <text class="lbl" x="310" y="34" text-anchor="middle">Sample(x) → max(hi, x)</text>
+          <path class="wire" d="M290,130 C290,178 330,178 330,130" marker-end="url(#h-ah)"></path>
+          <text class="lbl acc" x="310" y="198" text-anchor="middle">Read() / reply Some(hi)</text>
+          <path class="wire" d="M76,130 C76,178 108,178 108,130" marker-end="url(#h-ah)"></path>
+          <text class="lbl acc" x="92" y="198" text-anchor="middle">Read() / reply None</text>
+        </svg>
+      </div>
+      <figcaption>PeakTracker, the first example program: two states and four transitions. It remembers the largest sample.</figcaption>
+    </figure>
+  </header>
+
+  <!-- OVERVIEW -->
+  <section id="overview" aria-labelledby="h-overview">
+    <div class="sec-head">
+      <p class="kick">Overview</p>
+      <h2 id="h-overview">What Borsuk is for</h2>
+    </div>
+    <div class="prose">
+      <p>Borsuk targets high-throughput software that keeps state, for example a booking service. Many agents change this software at the same time. An agent is a person or an AI coding agent.</p>
+    </div>
+    <p class="goal">An agent that changes one module must be able to read its contract, change its implementation, and find exactly which guarantee it broke.</p>
+    <ul class="guar" aria-label="Kinds of guarantee">
+      <li>Behavior</li><li>Ownership</li><li>Compatibility</li><li>Resource use</li>
+    </ul>
+
+    <div class="sub">
+      <h3>The main workload: one durable state change, end to end</h3>
+      <ol class="flow">
+        <li><b>Send a command</b><span>The caller sends a command with an ID. The caller keeps the ID for retries.</span></li>
+        <li><b>Decide durably</b><span>The system decides the command and writes the decision to durable storage.</span></li>
+        <li class="lost"><b>Reply can be lost</b><span>The network can lose the reply. A timeout leaves the result unknown to the caller.</span></li>
+        <li><b>Retry, get the same answer</b><span>A retry with the same ID returns the original decision during the published lookup window.</span></li>
+      </ol>
+    </div>
+
+    <div class="sub">
+      <h3>Three original commitments</h3>
+      <div class="three">
+        <div><h3>Strong types across boundaries</h3><p>Messages, replies, IDs, and the legal next steps have types. This includes traffic between services.</p></div>
+        <div><h3>Explicit state machines</h3><p>State changes only through declared transitions. A transition is a function from state and input to the next state.</p></div>
+        <div><h3>Strict modularity by default</h3><p>A module hides its representation. Other modules see only its declared interface and guarantees.</p></div>
+      </div>
+    </div>
+
+    <dl class="facts">
+      <div><dt>Compiler and runtime</dt><dd>Written in Rust</dd></div>
+      <div><dt>Code generation</dt><dd>Typed IR to LLVM IR to native code, ahead of time</dd></div>
+      <div><dt>Verification</dt><dd>Model checking, simulation, solvers, Lean 4, Verus</dd></div>
+      <div><dt>Agent interface</dt><dd>A CLI and an MCP server on one shared library</dd></div>
+      <div><dt>Surface syntax</dt><dd>Open. Two candidates exist.</dd></div>
+      <div><dt>Adoption goal</dt><dd>As widely usable as Rust or Ruby. Enters existing projects one workflow at a time.</dd></div>
+    </dl>
+  </section>
+
+  <!-- RULES -->
+  <section id="rules" aria-labelledby="h-rules">
+    <div class="sec-head">
+      <p class="kick">Language</p>
+      <h2 id="h-rules">The five language rules</h2>
+    </div>
+    <div class="prose">
+      <p>A language rule decides three things: whether a program is well formed, what the program can do, and what a caller may rely on. Tools help people and agents write, check, and ship a program. The standard library and the runtime sit between the two. The language states a guarantee, a library selects it for an operation, and the runtime implements it.</p>
+    </div>
+    <div class="rules">
+      <article class="rule">
+        <div class="rid">L1</div>
+        <div><h3>Public boundaries are typed protocols</h3><p>Domain IDs, payloads, replies, and the legal next steps have types. Foreign input becomes a typed value only after validation. The wire format and the SDK are replaceable.</p></div>
+        <p class="ex"><b>In practice</b>A single-use hold token tells a client that it may try to confirm. The service still decides expiry, duplicates, and revocation.</p>
+      </article>
+      <article class="rule">
+        <div class="rid">L2</div>
+        <div><h3>State changes through explicit, functional transitions</h3><p>Each state owner declares its control states, its data, its initial state, and its permitted edges. A turn takes the state and one typed input. It computes the next state and a description of effects. External results come back as new inputs.</p></div>
+        <p class="ex"><b>In practice</b>Local variables, pure helper functions, and scratch data need no actor and no mailbox.</p>
+      </article>
+      <article class="rule">
+        <div class="rid">L3</div>
+        <div><h3>Modules are private by default</h3><p>Each module owns its representation. Dependencies and observable effects cross an explicit signature. When modules compose, each environmental assumption needs a provider, or it must show at the outer boundary.</p></div>
+        <p class="ex"><b>In practice</b>A caller uses the exported guarantees of a module. The caller never reads the implementation.</p>
+      </article>
+      <article class="rule">
+        <div class="rid">L4</div>
+        <div><h3>Ownership and visibility govern mutation</h3><p>A transition may update unique storage in place if every promised observation stays the same, including failures and cost bounds. A borrow cannot escape its lifetime. A successful handoff publishes prior writes to the receiver. A rejected handoff leaves ownership with the sender.</p></div>
+        <p class="ex"><b>In practice</b>A full queue rejects a packet. The sender still owns the packet and can use it again.</p>
+      </article>
+      <article class="rule">
+        <div class="rid">L5</div>
+        <div><h3>Named behavioral specs have a conformance meaning</h3><p>A spec states safety laws, conditional progress, and scoped resource bounds. An implementation must accept the contracted inputs, and its observable behavior must refine the spec. A caller relies on a law as proved only when its obligations are discharged for that scope.</p></div>
+        <p class="ex"><b>In practice</b>Several machines can implement one spec with different private states, algorithms, and storage layouts.</p>
+      </article>
+    </div>
+    <div class="defs">
+      <div><b>Safety law</b><span>A bad event never happens. Example: two bookings never own one slot.</span></div>
+      <div><b>Progress clause</b><span>A good event eventually happens, under stated assumptions. Example: an accepted command eventually gets a decision.</span></div>
+      <div><b>Refinement</b><span>Every observable behavior of the implementation is a behavior that the spec allows.</span></div>
+    </div>
+    <p class="cap">L3 makes the module the unit of change. L5 says when one implementation can replace another across that boundary. The compiler erases proof evidence when execution does not need it. A finite state machine can still have infinitely many configurations through its data.</p>
+  </section>
+
+  <!-- EXAMPLE -->
+  <section id="example" aria-labelledby="h-example">
+    <div class="sec-head">
+      <p class="kick">Example</p>
+      <h2 id="h-example">What a program looks like</h2>
+    </div>
+    <div class="prose">
+      <p>The syntax is not final. This specimen uses Candidate A. It defines a reading type, a public spec with one law, and a private machine with two states.</p>
+    </div>
+    <div class="codegrid">
+      <div>
+        <div class="codehead"><span>telemetry/peak</span><span>Candidate A</span></div>
+<pre class="code"><span class="k">module</span> telemetry.peak
+
+<span class="k">pub type</span> Reading = <span class="k">distinct</span> i64 <span class="k">derives</span> Ord
+
+<span class="k">pub spec</span> Peak {
+    <span class="k">event</span> Sample(Reading)
+    <span class="k">query</span> Read() -&gt; Option&lt;Reading&gt;
+
+    <span class="k">law</span> read_peak {
+        Read() <span class="k">returns</span> history.values(Sample).max()
+    }
+}
+
+<span class="k">machine</span> PeakTracker <span class="k">implements</span> Peak {
+    <span class="k">state</span> <span class="s">Empty</span> | <span class="s">Seen</span>(Reading)
+    <span class="k">init</span> <span class="s">Empty</span>
+
+    <span class="k">on</span> <span class="s">Empty</span>    + Sample(x) -&gt; <span class="s">Seen</span>(x)
+    <span class="k">on</span> <span class="s">Seen</span>(hi) + Sample(x) -&gt; <span class="s">Seen</span>(max(hi, x))
+
+    <span class="k">on</span> <span class="s">Empty</span>    + Read() -&gt; <span class="k">stay</span>, <span class="k">reply</span> None
+    <span class="k">on</span> <span class="s">Seen</span>(hi) + Read() -&gt; <span class="k">stay</span>, <span class="k">reply</span> Some(hi)
+}</pre>
+      </div>
+      <ul class="notes">
+        <li><code>distinct i64</code><span>A Reading is stored as a 64-bit integer. The checker does not let it mix with other integers.</span></li>
+        <li><code>pub spec Peak</code><span>The public contract. Other modules see only this part.</span></li>
+        <li><code>law read_peak</code><span>Read() returns the largest sample so far. With no samples, it returns None. The law talks about the input history. The machine does not store that history.</span></li>
+        <li><code>machine PeakTracker implements Peak</code><span>A private implementation. It keeps only the current maximum. The checker must show that it refines Peak.</span></li>
+        <li><code>on Seen(hi) + Sample(x) -&gt; Seen(max(hi, x))</code><span>One transition: source state plus input gives the next state.</span></li>
+        <li><code>stay, reply Some(hi)</code><span>The state does not change. The machine sends a reply.</span></li>
+        <li><code>Reset</code><span>If you add a Reset input to the spec, the checker reports each state that has no rule for Reset.</span></li>
+      </ul>
+    </div>
+
+    <div class="sub">
+      <h3>Two syntax candidates</h3>
+      <div class="cands">
+        <div class="cand">
+          <h3>A · One edge per declaration</h3>
+<pre class="code"><span class="k">on</span> <span class="s">Seen</span>(hi) + Sample(x) -&gt; <span class="s">Seen</span>(max(hi, x))
+<span class="k">on</span> <span class="s">Seen</span>(hi) + Read()    -&gt; <span class="k">stay</span>, <span class="k">reply</span> Some(hi)</pre>
+          <p>Each transition is one complete line. A review can quote or move it alone.</p>
+        </div>
+        <div class="cand">
+          <h3>B · Reactions grouped by source state</h3>
+<pre class="code"><span class="k">state</span> <span class="s">Seen</span>(hi) {
+    <span class="k">on</span> Sample(x) -&gt; <span class="s">Seen</span>(max(hi, x))
+    <span class="k">on</span> Read()    -&gt; <span class="k">stay</span>, <span class="k">reply</span> Some(hi)
+}</pre>
+          <p>All actions of one state are in one place. A reader sees what the state can do.</p>
+        </div>
+      </div>
+      <p class="cap">Both candidates must make the order of effects easy to read. After the choice, a formatter gives one canonical form, so equal edits give equal diffs.</p>
+    </div>
+
+    <div class="sub">
+      <h3>Effects come back as inputs</h3>
+      <figure class="frame">
+        <div class="scroll">
+          <svg class="dg" style="min-width: 600px" viewBox="0 0 720 186" role="img" aria-label="Booking state machine. Held plus Confirm moves to Committing and requests Persist from the storage adapter. Storage sends Persisted back as an input. Committing plus Persisted permits the success reply.">
+            <defs>
+              <marker id="f-ah" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto" style="color: var(--muted)"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"></path></marker>
+              <marker id="f-ah-acc" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto" style="color: var(--focus)"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"></path></marker>
+            </defs>
+            <rect class="box hl" x="20" y="40" width="140" height="44" rx="22"></rect>
+            <text class="tm" x="90" y="67" text-anchor="middle">Held(id)</text>
+            <rect class="box hl" x="290" y="40" width="160" height="44" rx="22"></rect>
+            <text class="tm" x="370" y="67" text-anchor="middle">Committing(id)</text>
+            <rect class="box ghost" x="580" y="40" width="120" height="44" rx="22"></rect>
+            <text class="tm" x="640" y="67" text-anchor="middle">next state</text>
+            <path class="wire" d="M160,62 H290" marker-end="url(#f-ah)"></path>
+            <text class="lbl" x="225" y="54" text-anchor="middle">Confirm</text>
+            <path class="wire acc" d="M450,62 H580" marker-end="url(#f-ah-acc)"></path>
+            <text class="lbl" x="515" y="54" text-anchor="middle">Persisted(id)</text>
+            <text class="lbl acc" x="515" y="80" text-anchor="middle">reply: success</text>
+            <rect class="box ext" x="300" y="136" width="140" height="36" rx="4"></rect>
+            <text class="t1" x="370" y="158" text-anchor="middle">Storage adapter</text>
+            <path class="wire" d="M345,84 V136" marker-end="url(#f-ah)"></path>
+            <text class="lbl" x="337" y="114" text-anchor="end">effect: Persist(id)</text>
+            <path class="wire" d="M395,136 V84" marker-end="url(#f-ah)"></path>
+            <text class="lbl" x="403" y="114">input: Persisted(id)</text>
+          </svg>
+        </div>
+        <figcaption>From the booking case. The machine does not call storage. It requests an effect, and the result returns as the input Persisted(id). The success reply sits on the Persisted edge, so the client hears "success" only after the commit is durable. "next state" is a placeholder: the design does not name it.</figcaption>
+      </figure>
+    </div>
+
+    <div class="sub">
+      <h3>A spec for the booking case: DurableReschedule</h3>
+      <div class="scroll">
+        <table class="tbl min640">
+          <thead><tr><th scope="col">Public law</th><th scope="col">Obligation for each implementation</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">Acknowledged decisions survive recovery</th><td>After a caller receives a committed result, recovery keeps that decision for the published retention window. A crash between an early reply and the durable commit breaks this law.</td></tr>
+            <tr><th scope="row">Retries agree</th><td>Inside that window, every definitive reply to a retry with the same ID and payload reports the original decision. A lost reply leaves the caller free to retry.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="cap">Both laws are safety laws. A machine that never replies satisfies both. So the spec needs a separate progress clause: an accepted command eventually gets a recoverable decision. That clause must state its delivery, scheduling, and recovery assumptions. A later reschedule with a new ID may move the appointment again. For an upgrade, a replacement may accept more inputs and give stronger guarantees. If it needs more from callers or promises less, that is a contract change.</p>
+    </div>
+  </section>
+
+  <!-- ARCHITECTURE -->
+  <section id="architecture" aria-labelledby="h-arch">
+    <div class="sec-head">
+      <p class="kick">Architecture</p>
+      <h2 id="h-arch">How a program runs</h2>
+    </div>
+    <div class="prose">
+      <p>Borsuk owns the meaning of a program from source to optimization. The compiler, the runtime, and the shared tools are written in Rust. The backend translates Borsuk into LLVM IR and produces native code before the program runs. All tools read the same typed IR, so the interpreter, the verifier, and the optimizer agree on one meaning.</p>
+    </div>
+    <figure class="frame">
+      <div class="scroll">
+        <svg class="dg" style="min-width: 820px" viewBox="0 0 1000 366" role="img" aria-label="Pipeline. Borsuk source goes through the frontend into the typed IR. The typed IR feeds the reference interpreter, the verifier, and the native backend. The backend emits LLVM IR and native code, which links with the Rust runtime and runs in a host service. A toolchain library serves the CLI, MCP, and CI and calls the frontend, interpreter, and verifier.">
+          <defs>
+            <marker id="p-ah" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto" style="color: var(--muted)"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"></path></marker>
+          </defs>
+          <rect class="box" x="20" y="40" width="130" height="56" rx="8"></rect>
+          <text class="t1" x="34" y="64">Borsuk source</text><text class="t2" x="34" y="82">modules · specs</text>
+          <rect class="box" x="190" y="40" width="150" height="56" rx="8"></rect>
+          <text class="t1" x="204" y="64">Frontend</text><text class="t2" x="204" y="82">types · ownership · effects</text>
+          <rect class="box hl" x="380" y="40" width="140" height="56" rx="8"></rect>
+          <text class="t1" x="394" y="64">Typed IR</text><text class="t2" x="394" y="82">shared by all tools</text>
+          <rect class="box" x="560" y="40" width="140" height="56" rx="8"></rect>
+          <text class="t1" x="574" y="64">Native backend</text><text class="t2" x="574" y="82">layout · reuse</text>
+          <rect class="box" x="740" y="40" width="100" height="56" rx="8"></rect>
+          <text class="t1" x="754" y="64">LLVM IR</text><text class="t2" x="754" y="82">ThinLTO · PGO</text>
+          <rect class="box" x="880" y="40" width="100" height="56" rx="8"></rect>
+          <text class="t1" x="894" y="64">Native code</text><text class="t2" x="894" y="82">ahead of time</text>
+          <path class="wire" d="M150,68 H190" marker-end="url(#p-ah)"></path>
+          <path class="wire" d="M340,68 H380" marker-end="url(#p-ah)"></path>
+          <path class="wire" d="M520,68 H560" marker-end="url(#p-ah)"></path>
+          <path class="wire" d="M700,68 H740" marker-end="url(#p-ah)"></path>
+          <path class="wire" d="M840,68 H880" marker-end="url(#p-ah)"></path>
+
+          <rect class="box" x="260" y="170" width="170" height="56" rx="8"></rect>
+          <text class="t1" x="274" y="194">Reference interpreter</text><text class="t2" x="274" y="212">traces · replay</text>
+          <rect class="box" x="470" y="170" width="170" height="56" rx="8"></rect>
+          <text class="t1" x="484" y="194">Verifier</text><text class="t2" x="484" y="212">proofs · model checks</text>
+          <rect class="box" x="780" y="170" width="200" height="56" rx="8"></rect>
+          <text class="t1" x="794" y="194">Rust runtime</text><text class="t2" x="794" y="212">mailbox · durable commands</text>
+          <path class="wire" d="M400,96 V170" marker-end="url(#p-ah)"></path>
+          <text class="lbl" x="392" y="137" text-anchor="end">execute</text>
+          <path class="wire" d="M490,96 V170" marker-end="url(#p-ah)"></path>
+          <text class="lbl" x="498" y="137">obligations</text>
+          <path class="wire" d="M930,96 V170" marker-end="url(#p-ah)"></path>
+          <text class="lbl" x="922" y="137" text-anchor="end">links with</text>
+
+          <rect class="box ext" x="20" y="290" width="150" height="56" rx="8"></rect>
+          <text class="t1" x="34" y="314">CLI · MCP · CI</text><text class="t2" x="34" y="332">agents and people</text>
+          <rect class="box" x="210" y="290" width="430" height="56" rx="8"></rect>
+          <text class="t1" x="224" y="314">Toolchain library (Rust)</text><text class="t2" x="224" y="332">semantic queries · verification · replay</text>
+          <rect class="box ext" x="780" y="290" width="200" height="56" rx="8"></rect>
+          <text class="t1" x="794" y="314">Host service</text><text class="t2" x="794" y="332">embedded one module at a time</text>
+          <path class="wire" d="M170,318 H210" marker-end="url(#p-ah)"></path>
+          <path class="wire" d="M250,290 V96" marker-end="url(#p-ah)"></path>
+          <text class="lbl" x="258" y="262">query</text>
+          <path class="wire" d="M345,290 V226" marker-end="url(#p-ah)"></path>
+          <text class="lbl" x="353" y="262">replay</text>
+          <path class="wire" d="M555,290 V226" marker-end="url(#p-ah)"></path>
+          <text class="lbl" x="563" y="262">verify</text>
+          <path class="wire" d="M880,226 V290" marker-end="url(#p-ah)"></path>
+          <text class="lbl" x="888" y="262">runs in</text>
+        </svg>
+      </div>
+      <figcaption>The typed IR is the hinge. Tests compare interpreter traces with native traces. That comparison gives evidence, but compiler correctness needs its own refinement argument.</figcaption>
+    </figure>
+    <div class="scroll">
+      <table class="tbl min720">
+        <thead><tr><th scope="col">Component</th><th scope="col">Job</th></tr></thead>
+        <tbody>
+          <tr><th scope="row" class="nowrap">Frontend and typed IR</th><td>Resolves types, state variants, input policies, ownership, effects, and resource obligations. Keeps these facts available for layout, specialization, storage reuse, and fusion. The public protocol and its laws do not depend on the private representation of a machine.</td></tr>
+          <tr><th scope="row" class="nowrap">Reference interpreter</th><td>Runs the typed IR in a simple way for differential tests and trace replay.</td></tr>
+          <tr><th scope="row" class="nowrap">Verifier</th><td>Gives a precise meaning to the same operations. Uses Lean 4 for core theory, for example that a well-typed step preserves ownership. Verus is a candidate for selected Rust runtime parts.</td></tr>
+          <tr><th scope="row" class="nowrap">Native backend</th><td>Chooses compact representations and lowers calls and transitions to LLVM. Uses cross-module and profile-guided optimization where measured workloads benefit. Checks resource contracts against lowered code and reports assumptions that foreign code adds.</td></tr>
+          <tr><th scope="row" class="nowrap">Rust runtime</th><td>An embedded machine runs on its caller's thread with caller memory. Independent scheduling uses a bounded mailbox. An in-process transfer can move an owned buffer. A process boundary adds encoding and transport costs. Sharding, batching, and group commit must respect the visibility and durability guarantees.</td></tr>
+          <tr><th scope="row" class="nowrap">Agent toolchain</th><td>The CLI, the MCP server, and CI call one Rust library. A result has the same law ID, assumptions, evidence status, and scope at each entry point.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="sub">
+      <h3>Optimization that the protocol permits</h3>
+      <div class="prose"><p>For the input below, the replies must be <code>Some(90)</code> and <code>Some(120)</code>. Inside a run of samples, the compiler can combine the max operations into one update. This removes per-event dispatch and stores, and a numeric run can also use SIMD. A Read splits the run.</p></div>
+      <figure class="frame">
+        <div class="scroll">
+          <svg class="dg" style="min-width: 640px" viewBox="0 0 870 100" role="img" aria-label="Input sequence Sample 70, Sample 90, Sample 80, Read, Sample 120, Read. The first three samples form run 1 and become one update with maximum 90. The first Read replies Some 90. Sample 120 forms run 2 with maximum 120. The second Read replies Some 120.">
+            <defs>
+              <marker id="z-ah" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" markerUnits="userSpaceOnUse" orient="auto" style="color: var(--focus)"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"></path></marker>
+            </defs>
+            <rect class="box" x="20" y="14" width="128" height="36" rx="6"></rect><text class="tm" x="84" y="37" text-anchor="middle">Sample(70)</text>
+            <rect class="box" x="160" y="14" width="128" height="36" rx="6"></rect><text class="tm" x="224" y="37" text-anchor="middle">Sample(90)</text>
+            <rect class="box" x="300" y="14" width="128" height="36" rx="6"></rect><text class="tm" x="364" y="37" text-anchor="middle">Sample(80)</text>
+            <rect class="box read" x="440" y="14" width="128" height="36" rx="6"></rect><text class="tm" x="504" y="37" text-anchor="middle">Read()</text>
+            <rect class="box" x="580" y="14" width="128" height="36" rx="6"></rect><text class="tm" x="644" y="37" text-anchor="middle">Sample(120)</text>
+            <rect class="box read" x="720" y="14" width="128" height="36" rx="6"></rect><text class="tm" x="784" y="37" text-anchor="middle">Read()</text>
+            <path class="bracket" d="M20,58 V66 H428 V58"></path>
+            <text class="lbl" x="224" y="88" text-anchor="middle">run 1: one update, max = 90</text>
+            <path class="bracket" d="M580,58 V66 H708 V58"></path>
+            <text class="lbl" x="644" y="88" text-anchor="middle">run 2: max = 120</text>
+            <path class="wire acc" d="M504,50 V72" marker-end="url(#z-ah)"></path>
+            <text class="lbl acc" x="504" y="88" text-anchor="middle">reply Some(90)</text>
+            <path class="wire acc" d="M784,50 V72" marker-end="url(#z-ah)"></path>
+            <text class="lbl acc" x="784" y="88" text-anchor="middle">reply Some(120)</text>
+          </svg>
+        </div>
+        <figcaption>Other events also split a run: any guarantee that exposes an intermediate result, such as a single acknowledgment, a durable log record, an external effect, or an ordering obligation to another party. The optimizer must keep the same replies, failures, and resource bounds as the source meaning. Fusion must also stay inside the batching and latency budget of the baseline.</figcaption>
+      </figure>
+      <div class="callout">
+        <h3>Cost target for one embedded transition</h3>
+        <p>A transition from <code>Held</code> to a same-size successor on uniquely owned storage should compile to a tag check, a guard, and the required stores. For that path the target is zero heap allocations, zero payload copies, and zero scheduler hops. A proof that the compiler erases adds no instructions. A durable reply still pays for its storage flush or quorum. An allocating diagnostic on the queue-full branch breaks an all-path zero-allocation promise.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- EVIDENCE -->
+  <section id="evidence" aria-labelledby="h-evidence">
+    <div class="sec-head">
+      <p class="kick">Verification</p>
+      <h2 id="h-evidence">What a check can claim</h2>
+    </div>
+    <div class="prose">
+      <p>Different tools give different kinds of evidence. Borsuk reports exactly one of five results for each law, and it never mixes them. A property has a meaning even when the verifier returns "unknown".</p>
+    </div>
+    <div class="ev">
+      <div class="evc sup">
+        <span class="badge">Supports</span>
+        <h3>Proved under assumptions</h3>
+        <p>A proof holds for every behavior, given the stated assumptions.</p>
+        <div class="scope" aria-label="Scope: all behaviors"><span>Scope</span><span class="bar"><i style="width:100%"></i></span></div>
+        <p class="use">A caller may rely on the law inside those assumptions.</p>
+      </div>
+      <div class="evc sup">
+        <span class="badge">Supports</span>
+        <h3>Checked within bounds</h3>
+        <p>A model checker explored every state up to a bound.</p>
+        <div class="scope" aria-label="Scope: all states within the bound"><span>Scope</span><span class="bar"><i style="width:62%"></i></span></div>
+        <p class="use">No violation inside the bound. No claim outside it.</p>
+      </div>
+      <div class="evc sup">
+        <span class="badge">Supports</span>
+        <h3>Sampled schedules passed</h3>
+        <p>Simulated schedules with faults all passed.</p>
+        <div class="scope" aria-label="Scope: the sampled runs only"><span>Scope</span><span class="bar"><i style="width:28%"></i></span></div>
+        <p class="use">Evidence about those runs only.</p>
+      </div>
+      <div class="evc neg">
+        <span class="badge">Refutes</span>
+        <h3>Counterexample</h3>
+        <p>A concrete trace breaks the law.</p>
+        <p class="use">The trace replays from its recorded inputs, versions, and schedule.</p>
+      </div>
+      <div class="evc unk">
+        <span class="badge">Open</span>
+        <h3>Unknown</h3>
+        <p>The checker did not decide.</p>
+        <p class="use">The report shows the unresolved obligation. A release policy decides if the module can ship.</p>
+      </div>
+    </div>
+
+    <div class="sub">
+      <h3>A cached proof is valid only for what it proved</h3>
+      <div class="key" aria-label="Evidence key parts">
+        <span>revision</span><i>+</i><span>dependencies</span><i>+</i><span>assumptions</span><i>+</i><span>target</span><i>+</i><span>toolchain</span><i>+</i><span>verification settings</span>
+      </div>
+      <p class="cap">A stable law name helps an agent find a law. It cannot identify proof evidence. Reuse across revisions needs a checked equivalence.</p>
+    </div>
+
+    <div class="sub">
+      <h3>Finite models already run</h3>
+      <div class="prose"><p>An adversarial review of the design explored three small models by breadth-first search over all reachable states. Each model compares a permissive meaning with the proposed correction.</p></div>
+      <div class="scroll">
+        <table class="tbl min720">
+          <thead><tr><th scope="col">Model</th><th scope="col">Shortest failure, permissive meaning</th><th scope="col">Result with the correction</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">Retried credit with a crash</th><td>Apply the credit, crash and restart, retry. The credit applies twice. Identical replies do not prove a single application. <b class="mono">8 states</b></td><td>Commit the mutation and its completion record as one recoverable step. No duplicate. <b class="mono">3 states</b></td></tr>
+            <tr><th scope="row">Two peers, bounded queues</th><td>Each peer must send twice before it receives. With capacity 1, both queues fill and neither peer can move. Fair scheduling cannot enable a disabled step. <b class="mono">4 states</b></td><td>At capacity 2, no deadlock. <b class="mono">19 states</b>. This holds only for this protocol. Check the deployed capacities.</td></tr>
+            <tr><th scope="row">Cached proof after an edit</th><td>Prove revision A, edit to B, accept the proof of A for B by law name. <b class="mono">7 states</b></td><td>Require an exact revision match. No false acceptance. <b class="mono">6 states</b></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="callout">
+        <h3>A finite witness for the booking rules: 38 states, 106 transitions</h3>
+        <p>Two request IDs compete once for one slot through a one-entry durable inbox. The owner can crash and restart, commit atomically, lose a reply, serve a retry, and expire a decided ID. The search found no violation of single ownership, inbox capacity, reply consistency, crash preservation, or terminal expiry. The model assumes an atomic durable commit. It tests no real storage, MCP client, implementation, or hardware.</p>
+      </div>
+      <div class="callout">
+        <h3>A green proof can hide a weak spec</h3>
+        <p>A proof can still pass after someone deletes the most valuable promise. So the toolchain inserts faulty implementations and checks which ones still verify. It also derives black-box tests from specs and compares implementation traces with the design.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ACCEPTANCE -->
+  <section id="acceptance" aria-labelledby="h-acc">
+    <div class="sec-head">
+      <p class="kick">Acceptance case</p>
+      <h2 id="h-acc">Reschedule one appointment under contention</h2>
+    </div>
+    <div class="prose">
+      <p>This case tests both kinds of mutation in one workflow: a durable change that clients can see, and an efficient change of local memory. Two clients compete for one destination slot. A stale timer from an earlier hold arrives. The winner's commit reaches durable storage, but its reply is lost. The owner restarts during a rolling upgrade. The ingress queue fills while the client retries.</p>
+    </div>
+    <figure class="frame">
+      <div class="scroll">
+        <svg class="dg" style="min-width: 760px" viewBox="0 0 900 548" role="img" aria-label="Sequence diagram. Client A and client B each send Move. The service commits A's move and rejects B. The reply to A is lost. The service crashes and restarts on a new version. A stale timer has no effect. A retries with the same ID. The service looks up the decision and replies Moved with the original decision.">
+          <defs>
+            <marker id="s-ah" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto" style="color: var(--muted)"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"></path></marker>
+            <marker id="s-ah-acc" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto" style="color: var(--focus)"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"></path></marker>
+          </defs>
+          <rect class="box" x="42" y="16" width="136" height="36" rx="6"></rect><text class="t1" x="110" y="39" text-anchor="middle">Client A</text>
+          <rect class="box" x="212" y="16" width="136" height="36" rx="6"></rect><text class="t1" x="280" y="39" text-anchor="middle">Client B</text>
+          <rect class="box hl" x="452" y="16" width="136" height="36" rx="6"></rect><text class="t1" x="520" y="39" text-anchor="middle">Service owner</text>
+          <rect class="box ext" x="712" y="16" width="136" height="36" rx="6"></rect><text class="t1" x="780" y="39" text-anchor="middle">Durable store</text>
+          <line class="life" x1="110" y1="52" x2="110" y2="536"></line>
+          <line class="life" x1="280" y1="52" x2="280" y2="536"></line>
+          <line class="life" x1="520" y1="52" x2="520" y2="536"></line>
+          <line class="life" x1="780" y1="52" x2="780" y2="536"></line>
+
+          <path class="wire" d="M110,92 H520" marker-end="url(#s-ah)"></path>
+          <text class="lbl" x="315" y="85" text-anchor="middle">1 · Move, id a1</text>
+          <path class="wire" d="M280,134 H520" marker-end="url(#s-ah)"></path>
+          <text class="lbl" x="400" y="127" text-anchor="middle">2 · Move, id b1</text>
+          <path class="wire" d="M520,176 H780" marker-end="url(#s-ah)"></path>
+          <text class="lbl" x="650" y="169" text-anchor="middle">3 · commit a1 (move booking)</text>
+          <path class="wire" d="M520,218 H280" marker-end="url(#s-ah)"></path>
+          <text class="lbl" x="400" y="211" text-anchor="middle">4 · Rejected: slot taken</text>
+          <path class="wire lost" d="M520,260 H196"></path>
+          <line class="xmark" x1="180" y1="252" x2="196" y2="268"></line>
+          <line class="xmark" x1="196" y1="252" x2="180" y2="268"></line>
+          <text class="lbl crit" x="358" y="253" text-anchor="middle">5 · Moved (reply lost)</text>
+          <rect class="crash" x="410" y="290" width="220" height="26" rx="5"></rect>
+          <text class="lbl crit" x="520" y="307" text-anchor="middle">6 · crash, restart, new version</text>
+          <path class="wire" d="M690,350 H520" marker-end="url(#s-ah)"></path>
+          <text class="lbl" x="530" y="343">7 · stale timer, old hold: no effect</text>
+          <path class="wire" d="M110,392 H520" marker-end="url(#s-ah)"></path>
+          <text class="lbl" x="315" y="385" text-anchor="middle">8 · retry Move, id a1</text>
+          <path class="wire" d="M520,434 H780" marker-end="url(#s-ah)"></path>
+          <text class="lbl" x="650" y="427" text-anchor="middle">9 · look up a1</text>
+          <path class="wire" d="M780,476 H520" marker-end="url(#s-ah)"></path>
+          <text class="lbl" x="650" y="469" text-anchor="middle">10 · decided: moved</text>
+          <path class="wire acc" d="M520,518 H110" marker-end="url(#s-ah-acc)"></path>
+          <text class="lbl acc" x="315" y="511" text-anchor="middle">11 · Moved (same decision)</text>
+        </svg>
+      </div>
+      <figcaption>One schedule of many. The checker must also explore the others: B wins instead of A, the queue is full, the reply is lost before or after the restart. Client B keeps its original appointment after the rejection.</figcaption>
+    </figure>
+    <div class="scroll">
+      <table class="tbl min720">
+        <thead><tr><th scope="col">Check</th><th scope="col">Required outcome</th></tr></thead>
+        <tbody>
+          <tr><th scope="row" class="nowrap">Client and protocol</th><td>The client keeps the same command ID across retries. A timeout leaves the result unknown. After a decision, the service keeps it for the lookup window. A definite rejection keeps the original appointment. Foreign clients pass the same wire validation and replay checks.</td></tr>
+          <tr><th scope="row" class="nowrap">Atomic visible mutation</th><td>At most one booking owns the destination. A successful move frees the old slot and claims the new one as one logical step. The deployment states if it uses one transaction boundary or a cross-shard protocol, and the checker verifies that choice against the same public history.</td></tr>
+          <tr><th scope="row" class="nowrap">Failures and recovery</th><td>A delayed timeout for hold A cannot release hold B. After commit and crash, a retry returns the original durable decision inside the recovery window. A recognizably expired request ID gets <code>OutcomeExpired</code> and does not run again. Notifications may arrive twice, so their guarantee states what the downstream service supports.</td></tr>
+          <tr><th scope="row" class="nowrap">Efficient local mutation</th><td>Decode into a preallocated packet. A successful queue admission transfers ownership. A rejection returns it. All pool buffers are conserved, including queued and in-flight packets. The declared allocation bound holds on both branches.</td></tr>
+          <tr><th scope="row" class="nowrap">Progress and overload</th><td>When the recovery, delivery, and scheduling assumptions hold, every durably admitted command eventually gets a durable decision. The spec says when the service must admit a request and when overload permits a rejection. Acceptance, completion, and receipt stay distinct.</td></tr>
+          <tr><th scope="row" class="nowrap">Real deployment and change</th><td>The test uses real codecs, storage adapters, rolling versions, and the client retry path. A simulator counterexample replays against the smallest configuration that shows it. Client-observed histories are compared with the protocol.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="twocol">
+      <div class="callout">
+        <h3>The regression test</h3>
+        <p>Move the success reply from after the commit to right after the enqueue. The message types and the happy path stay correct. A crash between the reply and the commit breaks the public guarantee. The agent must receive that crash trace.</p>
+      </div>
+      <div class="callout">
+        <h3>How to compare with Rust</h3>
+        <p>Use a hand-written Rust implementation with the same durability, batching, overload policy, hardware, and failure workload. Report offered and completed throughput, p50, p99, and p99.9 latency, rejection rate, bytes allocated or copied, and recovery time. Include hot-key skew and saturating load.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ROADMAP -->
+  <section id="roadmap" aria-labelledby="h-roadmap">
+    <div class="sec-head">
+      <p class="kick">Build plan</p>
+      <h2 id="h-roadmap">Ten phases in four tracks</h2>
+    </div>
+    <div class="prose">
+      <p>An arrow means that the next phase needs the output of the earlier phase. Phases in the same column can run at the same time. Each phase ends at a gate: a concrete test from the design. The longest chain is P0 → P1 → P2 → P4 → P5 → P6 → P9. P3, P7, and P8 run beside it.</p>
+    </div>
+    <figure class="frame">
+      <div class="scroll">
+        <svg id="graph" class="dg" viewBox="0 0 1270 418" role="img" aria-label="Dependency graph of ten phases in four tracks. P0 leads to P1, then P2. P2 feeds P3 and P4. P3 feeds P5, P7 and P8. P4 feeds P5, and P5 feeds P6. P6, P7 and P8 all feed P9.">
+          <defs>
+            <marker id="g-ah" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto" style="color: var(--muted)"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"></path></marker>
+            <marker id="g-ah-on" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto" style="color: var(--ink)"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"></path></marker>
+          </defs>
+          <rect class="lane" x="0" y="12" width="1270" height="88" rx="8"></rect>
+          <rect class="lane" x="0" y="104" width="1270" height="88" rx="8"></rect>
+          <rect class="lane" x="0" y="196" width="1270" height="88" rx="8"></rect>
+          <rect class="lane" x="0" y="288" width="1270" height="88" rx="8"></rect>
+          <rect class="sw lang" x="16" y="51" width="10" height="10" rx="2"></rect>
+          <text class="lane-label" x="34" y="60">Language core</text>
+          <rect class="sw exec" x="16" y="143" width="10" height="10" rx="2"></rect>
+          <text class="lane-label" x="34" y="152">Execution</text>
+          <rect class="sw spec" x="16" y="235" width="10" height="10" rx="2"></rect>
+          <text class="lane-label" x="34" y="244">Specs and evidence</text>
+          <rect class="sw agent" x="16" y="327" width="10" height="10" rx="2"></rect>
+          <text class="lane-label" x="34" y="336">Agents and release</text>
+          <line class="axis" x1="164" y1="394" x2="1250" y2="394"></line>
+          <path d="M1250,389 L1258,394 L1250,399 z" fill="currentColor"></path>
+          <text class="axis-label" x="164" y="412">EARLIEST START, LEFT TO RIGHT</text>
+
+          <path class="edge" data-from="p0" data-to="p1" d="M296,56 H324"></path>
+          <path class="edge" data-from="p1" data-to="p2" d="M456,56 H470 V148 H484"></path>
+          <path class="edge" data-from="p2" data-to="p4" d="M616,148 H644"></path>
+          <path class="edge" data-from="p2" data-to="p3" d="M616,148 H630 V240 H644"></path>
+          <path class="edge" data-from="p4" data-to="p5" d="M776,148 H804"></path>
+          <path class="edge" data-from="p3" data-to="p5" d="M776,240 H790 V148 H804"></path>
+          <path class="edge" data-from="p3" data-to="p8" d="M776,240 H804"></path>
+          <path class="edge" data-from="p3" data-to="p7" d="M776,240 H790 V332 H804"></path>
+          <path class="edge" data-from="p5" data-to="p6" d="M936,148 H964"></path>
+          <path class="edge" data-from="p6" data-to="p9" d="M1096,148 H1110 V332 H1124"></path>
+          <path class="edge" data-from="p8" data-to="p9" d="M936,240 H1110 V332 H1124"></path>
+          <path class="edge" data-from="p7" data-to="p9" d="M936,332 H1124"></path>
+
+          <a class="node lang" href="#p0" data-id="p0" aria-label="P0 Core semantics"><rect x="164" y="30" width="132" height="52" rx="7"></rect><text class="pid" x="176" y="50">P0</text><text class="nm" x="176" y="69">Core semantics</text></a>
+          <a class="node lang" href="#p1" data-id="p1" aria-label="P1 Frontend and typed IR"><rect x="324" y="30" width="132" height="52" rx="7"></rect><text class="pid" x="336" y="50">P1</text><text class="nm" x="336" y="69">Frontend + IR</text></a>
+          <a class="node exec" href="#p2" data-id="p2" aria-label="P2 Interpreter and replay"><rect x="484" y="122" width="132" height="52" rx="7"></rect><text class="pid" x="496" y="142">P2</text><text class="nm" x="496" y="161">Interpreter</text></a>
+          <a class="node exec" href="#p4" data-id="p4" aria-label="P4 Durable runtime"><rect x="644" y="122" width="132" height="52" rx="7"></rect><text class="pid" x="656" y="142">P4</text><text class="nm" x="656" y="161">Durable runtime</text></a>
+          <a class="node exec" href="#p5" data-id="p5" aria-label="P5 Native backend"><rect x="804" y="122" width="132" height="52" rx="7"></rect><text class="pid" x="816" y="142">P5</text><text class="nm" x="816" y="161">Native backend</text></a>
+          <a class="node exec" href="#p6" data-id="p6" aria-label="P6 Interop and embedding"><rect x="964" y="122" width="132" height="52" rx="7"></rect><text class="pid" x="976" y="142">P6</text><text class="nm" x="976" y="161">Interop + embed</text></a>
+          <a class="node spec" href="#p3" data-id="p3" aria-label="P3 Specs and checker"><rect x="644" y="214" width="132" height="52" rx="7"></rect><text class="pid" x="656" y="234">P3</text><text class="nm" x="656" y="253">Specs + checker</text></a>
+          <a class="node spec" href="#p8" data-id="p8" aria-label="P8 Upgrade safety"><rect x="804" y="214" width="132" height="52" rx="7"></rect><text class="pid" x="816" y="234">P8</text><text class="nm" x="816" y="253">Upgrade safety</text></a>
+          <a class="node agent" href="#p7" data-id="p7" aria-label="P7 Agent toolchain"><rect x="804" y="306" width="132" height="52" rx="7"></rect><text class="pid" x="816" y="326">P7</text><text class="nm" x="816" y="345">Agent toolchain</text></a>
+          <a class="node agent" href="#p9" data-id="p9" aria-label="P9 Measured release"><rect x="1124" y="306" width="132" height="52" rx="7"></rect><text class="pid" x="1136" y="326">P9</text><text class="nm" x="1136" y="345">Measured release</text></a>
+        </svg>
+      </div>
+      <figcaption>Point at a phase to show its inputs and outputs. Select a phase to open its card below. The source design lists components, not an order. These phase cuts and arrows are a proposal.</figcaption>
+    </figure>
+
+    <div class="phases">
+      <article class="phase" id="p0" data-track="lang">
+        <div class="ph-head"><span class="pid">P0</span><h3>Core semantics</h3><span class="track">Language core</span></div>
+        <ul>
+          <li>Typing and evaluation rules for L1 to L5.</li>
+          <li>A Lean 4 proof that a well-typed step preserves ownership.</li>
+          <li>A choice of surface syntax: Candidate A or B, tried on the booking workflow.</li>
+          <li>A canonical transition form and its formatter rules.</li>
+        </ul>
+        <div class="gate"><div class="gate-row"><span class="gate-k">Gate</span><span class="prog">peak · reschedule</span></div><p>Both golden programs have a defined meaning. One syntax is chosen.</p></div>
+        <p class="needs">Needs nothing. This phase starts first.</p>
+      </article>
+      <article class="phase" id="p1" data-track="lang">
+        <div class="ph-head"><span class="pid">P1</span><h3>Frontend and typed IR</h3><span class="track">Language core</span></div>
+        <ul>
+          <li>A Rust parser, a formatter, and name resolution.</li>
+          <li>Modules are private by default.</li>
+          <li>Types for protocols, distinct IDs, states, edges, input policies, and effects.</li>
+          <li>Ownership and borrow checks. JSON diagnostics with source spans.</li>
+        </ul>
+        <div class="gate"><div class="gate-row"><span class="gate-k">Gate</span><span class="prog">peak</span></div><p>Add a <code>Reset</code> input to <code>Peak</code>. The checker reports each state that has no input policy for it.</p></div>
+        <p class="needs">Needs <a href="#p0">P0</a></p>
+      </article>
+      <article class="phase" id="p2" data-track="exec">
+        <div class="ph-head"><span class="pid">P2</span><h3>Interpreter and replay</h3><span class="track">Execution</span></div>
+        <ul>
+          <li>A deterministic interpreter for the typed IR.</li>
+          <li>One trace format for the verifier, the replay tool, and the optimizer.</li>
+          <li>Replay of a recorded trace.</li>
+        </ul>
+        <div class="gate"><div class="gate-row"><span class="gate-k">Gate</span><span class="prog">peak</span></div><p><code>Sample(70) Sample(90) Sample(80) Read() Sample(120) Read()</code> gives <code>Some(90)</code>, then <code>Some(120)</code>. The trace replays the same.</p></div>
+        <p class="needs">Needs <a href="#p1">P1</a></p>
+      </article>
+      <article class="phase" id="p3" data-track="spec">
+        <div class="ph-head"><span class="pid">P3</span><h3>Specs and checker</h3><span class="track">Specs and evidence</span></div>
+        <ul>
+          <li><code>spec</code>, <code>law</code>, and <code>implements</code>, with a refinement check.</li>
+          <li>A bounded model checker and a deterministic simulator: crash, lost reply, stale timer, full queue.</li>
+          <li>The five evidence results and the evidence key.</li>
+          <li>Spec mutation to find weak laws.</li>
+        </ul>
+        <div class="gate"><div class="gate-row"><span class="gate-k">Gate</span><span class="prog">finite models</span></div><p>The checker finds the three counterexamples (8, 4, and 7 states). It explores the 38-state booking witness and finds no violation.</p></div>
+        <p class="needs">Needs <a href="#p2">P2</a></p>
+      </article>
+      <article class="phase" id="p4" data-track="exec">
+        <div class="ph-head"><span class="pid">P4</span><h3>Durable runtime</h3><span class="track">Execution</span></div>
+        <ul>
+          <li>An embedded machine on the caller's thread. A bounded mailbox returns ownership on reject.</li>
+          <li>A durable command API: retry ID, lookup window, <code>OutcomeExpired</code>.</li>
+          <li>One atomic commit for the mutation and its completion record.</li>
+          <li>A storage adapter, batching, and group commit. Verus proofs for selected parts.</li>
+        </ul>
+        <div class="gate"><div class="gate-row"><span class="gate-k">Gate</span><span class="prog">reschedule</span></div><p>Commit, crash, lose the reply, retry. The retry returns the original decision. All pool buffers are conserved.</p></div>
+        <p class="needs">Needs <a href="#p2">P2</a></p>
+      </article>
+      <article class="phase" id="p5" data-track="exec">
+        <div class="ph-head"><span class="pid">P5</span><h3>Native backend</h3><span class="track">Execution</span></div>
+        <ul>
+          <li>Typed IR to LLVM IR, compiled ahead of time.</li>
+          <li>Compact layouts, storage reuse, and a checked in-place subset for hot paths.</li>
+          <li>Transition fusion and SIMD where the protocol permits them.</li>
+          <li>Resource contracts checked on lowered code. Interpreter and native traces compared.</li>
+        </ul>
+        <div class="gate"><div class="gate-row"><span class="gate-k">Gate</span><span class="prog">reschedule · peak</span></div><p><code>Held</code> to a same-size successor compiles to a tag check, a guard, and stores. Both queue branches allocate zero heap bytes.</p></div>
+        <p class="needs">Needs <a href="#p4">P4</a>, <a href="#p3">P3</a></p>
+      </article>
+      <article class="phase" id="p6" data-track="exec">
+        <div class="ph-head"><span class="pid">P6</span><h3>Interop and embedding</h3><span class="track">Execution</span></div>
+        <ul>
+          <li>Wire codecs and validation of foreign input.</li>
+          <li>SDK generation for host languages.</li>
+          <li>A foreign-function boundary. The report lists each assumption that foreign code adds.</li>
+        </ul>
+        <div class="gate"><div class="gate-row"><span class="gate-k">Gate</span><span class="prog">reschedule</span></div><p>One Borsuk module runs inside an existing Rust service. Foreign clients pass wire validation and replay checks.</p></div>
+        <p class="needs">Needs <a href="#p5">P5</a></p>
+      </article>
+      <article class="phase" id="p7" data-track="agent">
+        <div class="ph-head"><span class="pid">P7</span><h3>Agent toolchain</h3><span class="track">Agents and release</span></div>
+        <ul>
+          <li>One Rust library behind the CLI, the MCP server, and CI.</li>
+          <li>Search by intent: owner module, spec and law IDs, version-matched docs and examples.</li>
+          <li>Verify and replay tools with structured results. A shipped retry prompt.</li>
+        </ul>
+        <div class="gate"><div class="gate-row"><span class="gate-k">Gate</span><span class="prog">retry prompt</span></div><p>For one change, the CLI, MCP, and CI report the same law ID, assumptions, evidence status, and scope.</p></div>
+        <p class="needs">Needs <a href="#p3">P3</a></p>
+      </article>
+      <article class="phase" id="p8" data-track="spec">
+        <div class="ph-head"><span class="pid">P8</span><h3>Upgrade safety</h3><span class="track">Specs and evidence</span></div>
+        <ul>
+          <li>A semantic contract diff and a dependency impact report.</li>
+          <li>An upgrade direction check. Broader assumptions and stronger guarantees pass.</li>
+          <li>A mixed-version and rollback matrix. A release policy for unresolved obligations.</li>
+        </ul>
+        <div class="gate"><div class="gate-row"><span class="gate-k">Gate</span><span class="prog">reschedule</span></div><p>Move the reply from after commit to after enqueue. The diff flags it with a crash trace. The message bytes do not change.</p></div>
+        <p class="needs">Needs <a href="#p3">P3</a></p>
+      </article>
+      <article class="phase" id="p9" data-track="agent">
+        <div class="ph-head"><span class="pid">P9</span><h3>Measured release</h3><span class="track">Agents and release</span></div>
+        <ul>
+          <li>Benchmarks against idiomatic Rust and expert hand-fused Rust under equal conditions.</li>
+          <li>Fault injection campaigns.</li>
+          <li>Agent trials in three arms. Pilot teams in real projects.</li>
+        </ul>
+        <div class="gate"><div class="gate-row"><span class="gate-k">Gate</span><span class="prog">peak · reschedule</span></div><p>Each workload meets the throughput and latency targets. Pilot teams choose a second workflow.</p></div>
+        <p class="needs">Needs <a href="#p6">P6</a>, <a href="#p7">P7</a>, <a href="#p8">P8</a></p>
+      </article>
+    </div>
+
+    <div class="sub">
+      <h3>Where the five rules land</h3>
+      <p class="cap">Each dot marks a phase that builds or enforces a rule. Select a dot to read what the phase does for that rule.</p>
+      <figure class="frame">
+        <div class="scroll">
+          <table class="matrix">
+            <thead>
+              <tr>
+                <th scope="col" class="rule-h">Language rule</th>
+                <th scope="col" class="c-lang"><a href="#p0">P0</a></th>
+                <th scope="col" class="c-lang"><a href="#p1">P1</a></th>
+                <th scope="col" class="c-exec"><a href="#p2">P2</a></th>
+                <th scope="col" class="c-spec"><a href="#p3">P3</a></th>
+                <th scope="col" class="c-exec"><a href="#p4">P4</a></th>
+                <th scope="col" class="c-exec"><a href="#p5">P5</a></th>
+                <th scope="col" class="c-exec"><a href="#p6">P6</a></th>
+                <th scope="col" class="c-agent"><a href="#p7">P7</a></th>
+                <th scope="col" class="c-spec"><a href="#p8">P8</a></th>
+                <th scope="col" class="c-agent"><a href="#p9">P9</a></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th scope="row"><span class="lid">L1</span>Typed protocols</th>
+                <td><button class="dot" data-r="L1" data-p="P0" data-n="Defines protocol types and the trust boundary."></button></td>
+                <td><button class="dot" data-r="L1" data-p="P1" data-n="Type checks for distinct IDs, payloads, replies, and continuations."></button></td>
+                <td></td>
+                <td><button class="dot" data-r="L1" data-p="P3" data-n="An implementation must match the protocol types of its spec."></button></td>
+                <td></td>
+                <td></td>
+                <td><button class="dot" data-r="L1" data-p="P6" data-n="Wire codecs validate foreign input before it becomes a typed value."></button></td>
+                <td></td>
+                <td><button class="dot" data-r="L1" data-p="P8" data-n="The contract diff shows protocol changes between versions."></button></td>
+                <td></td>
+              </tr>
+              <tr>
+                <th scope="row"><span class="lid">L2</span>Explicit transitions</th>
+                <td><button class="dot" data-r="L2" data-p="P0" data-n="Defines states, edges, turns, and effect descriptions."></button></td>
+                <td><button class="dot" data-r="L2" data-p="P1" data-n="Reports each state with a missing input policy."></button></td>
+                <td><button class="dot" data-r="L2" data-p="P2" data-n="Executes each turn and records it in a trace."></button></td>
+                <td><button class="dot" data-r="L2" data-p="P3" data-n="Explores the reachable states of each machine."></button></td>
+                <td><button class="dot" data-r="L2" data-p="P4" data-n="Runs turns on the caller's thread or behind a bounded mailbox."></button></td>
+                <td><button class="dot" data-r="L2" data-p="P5" data-n="Lowers a transition to a tag check, a guard, and stores. Fuses runs of transitions."></button></td>
+                <td></td>
+                <td><button class="dot" data-r="L2" data-p="P7" data-n="Shows state graphs and trace views to agents."></button></td>
+                <td></td>
+                <td></td>
+              </tr>
+              <tr>
+                <th scope="row"><span class="lid">L3</span>Private modules</th>
+                <td><button class="dot" data-r="L3" data-p="P0" data-n="Defines privacy and composition through declared interfaces."></button></td>
+                <td><button class="dot" data-r="L3" data-p="P1" data-n="Makes each module private by default."></button></td>
+                <td></td>
+                <td><button class="dot" data-r="L3" data-p="P3" data-n="Each assumption at composition needs a provider or an explicit environment assumption."></button></td>
+                <td></td>
+                <td><button class="dot" data-r="L3" data-p="P5" data-n="Inlines across module boundaries only where that is safe."></button></td>
+                <td></td>
+                <td><button class="dot" data-r="L3" data-p="P7" data-n="Finds the owning module from an intent or a symbol."></button></td>
+                <td><button class="dot" data-r="L3" data-p="P8" data-n="Reports which dependents a contract change affects."></button></td>
+                <td></td>
+              </tr>
+              <tr>
+                <th scope="row"><span class="lid">L4</span>Ownership</th>
+                <td><button class="dot" data-r="L4" data-p="P0" data-n="A Lean 4 proof shows that a well-typed step preserves ownership."></button></td>
+                <td><button class="dot" data-r="L4" data-p="P1" data-n="Borrow and lifetime checks. A borrow cannot escape its lifetime."></button></td>
+                <td></td>
+                <td></td>
+                <td><button class="dot" data-r="L4" data-p="P4" data-n="A rejected handoff returns ownership to the sender. Pool buffers are conserved."></button></td>
+                <td><button class="dot" data-r="L4" data-p="P5" data-n="Reuses unique storage in place. A checked subset runs with no allocation."></button></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+              </tr>
+              <tr>
+                <th scope="row"><span class="lid">L5</span>Behavioral specs</th>
+                <td><button class="dot" data-r="L5" data-p="P0" data-n="Defines conformance and refinement."></button></td>
+                <td></td>
+                <td></td>
+                <td><button class="dot" data-r="L5" data-p="P3" data-n="Checks laws and refinement. Gives one of five evidence results."></button></td>
+                <td></td>
+                <td><button class="dot" data-r="L5" data-p="P5" data-n="Checks declared resource bounds against lowered code."></button></td>
+                <td></td>
+                <td><button class="dot" data-r="L5" data-p="P7" data-n="Every result carries the law ID, assumptions, and evidence status."></button></td>
+                <td><button class="dot" data-r="L5" data-p="P8" data-n="Checks the direction of an upgrade against the public laws."></button></td>
+                <td><button class="dot" data-r="L5" data-p="P9" data-n="Agent trials count false proof claims."></button></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="note" id="mnote" aria-live="polite"><b>L2 · P7</b><span>Shows state graphs and trace views to agents.</span></p>
+      </figure>
+    </div>
+  </section>
+
+  <!-- PERFORMANCE -->
+  <section id="performance" aria-labelledby="h-perf">
+    <div class="sec-head">
+      <p class="kick">Performance</p>
+      <h2 id="h-perf">The release targets</h2>
+    </div>
+    <div class="prose"><p>The release target sits near the top of the range that published verified code reached. All Borsuk numbers are targets. Nothing is measured yet. Each workload is reported alone, so an average cannot hide a slow hot path.</p></div>
+    <div class="perf">
+      <figure class="frame">
+        <div class="scroll">
+          <svg id="perf" class="dg" viewBox="0 0 760 162" role="img" aria-label="Throughput as a share of an unverified baseline. vMVCC reported 25 to 96 percent of Silo. The Borsuk target is at least 95 percent of expert hand-written Rust.">
+            <line class="grid" x1="210" y1="28" x2="210" y2="128"></line>
+            <line class="grid" x1="318.3" y1="28" x2="318.3" y2="128"></line>
+            <line class="grid" x1="426.7" y1="28" x2="426.7" y2="128"></line>
+            <line class="grid" x1="535" y1="28" x2="535" y2="128"></line>
+            <text class="tick" x="210" y="148" text-anchor="middle">0 %</text>
+            <text class="tick" x="318.3" y="148" text-anchor="middle">25 %</text>
+            <text class="tick" x="426.7" y="148" text-anchor="middle">50 %</text>
+            <text class="tick" x="535" y="148" text-anchor="middle">75 %</text>
+            <text class="tick" x="643.3" y="148" text-anchor="middle">100 %</text>
+            <text class="rl" x="0" y="54">vMVCC vs Silo</text>
+            <text class="rs" x="0" y="70">reported range, OSDI 2023</text>
+            <rect class="bar-ref" x="318.3" y="48" width="307.7" height="18" rx="4"><title>vMVCC: 25 % to 96 % of Silo throughput across the reported workloads</title></rect>
+            <text class="val" x="318.3" y="41" text-anchor="middle">25 %</text>
+            <text class="val" x="610" y="41" text-anchor="end">96 %</text>
+            <text class="rl" x="0" y="104">Borsuk vs expert Rust</text>
+            <text class="rs" x="0" y="120">release target, unmeasured</text>
+            <rect class="bar-tgt" x="621.7" y="98" width="108.3" height="18" rx="4"><title>Borsuk target: at least 95 % of expert hand-written Rust throughput, per workload</title></rect>
+            <path d="M730,98 L740,107 L730,116 z" class="bar-tgt"></path>
+            <text class="val" x="614" y="111" text-anchor="end">≥ 95 %</text>
+            <line class="base" x1="643.3" y1="22" x2="643.3" y2="128"></line>
+            <text class="tick" x="650" y="18">baseline</text>
+          </svg>
+        </div>
+        <figcaption>Throughput as a share of a strong unverified baseline. vMVCC is a verified in-memory transaction library. It compares with Silo, a fast unverified database, not with Rust. The row shows how far verified code can fall.</figcaption>
+      </figure>
+      <dl class="gates">
+        <div class="g"><dt>Throughput, per workload</dt><dd>≥ 95 %<small>of expert hand-written Rust, at the same latency and rejection limits</small></dd></div>
+        <div class="g"><dt>p99.9 latency, per workload</dt><dd>≤ 110 %<small>of expert Rust, at the same offered load and rejection policy</small></dd></div>
+        <div class="g"><dt>Embedded transition, scoped path</dt><dd>0 · 0 · 0<small>heap allocations, payload copies, scheduler hops</small></dd></div>
+      </dl>
+    </div>
+    <div class="scroll">
+      <table class="tbl min640">
+        <thead><tr><th scope="col">Implementation of the peak workload</th><th scope="col">What the result shows</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">Idiomatic Rust, one event at a time</th><td>The cost of plain event-by-event code.</td></tr>
+          <tr><th scope="row">Expert Rust with a hand-fused max reduction</th><td>The baseline for a developer who already used the same law and batching.</td></tr>
+          <tr><th scope="row">Borsuk, compiled from the explicit FSM</th><td>Equal to hand-fused Rust and faster than event-by-event Rust: the compiler automates the optimization. Reliably faster than hand-fused Rust: support for a faster-than-Rust claim on this workload and configuration.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="cap">Every report publishes the hardware, compiler versions and settings, workload distributions, batch limits, failure schedules, semantic checks, and variation across repeated runs. The embedded transition and the durable booking workload are measured separately.</p>
+  </section>
+
+  <!-- AGENTS -->
+  <section id="agents" aria-labelledby="h-agents">
+    <div class="sec-head">
+      <p class="kick">Adoption</p>
+      <h2 id="h-agents">Built for coding agents</h2>
+    </div>
+    <div class="prose"><p>The human describes the outcome. A coding agent can start without knowing a Borsuk keyword or a module name. The language ships a prompt like this one. The prompt guides the agent. The public spec has authority over behavior.</p></div>
+    <figure class="prompt">
+      <q>Make rescheduling safe to retry after a lost reply. Preserve its public contract and show me how you checked it.</q>
+      <figcaption><cite>Example task prompt from the design</cite></figcaption>
+    </figure>
+    <ol class="steps">
+      <li><b>Find the owner</b><span>Search by intent returns the owning module.</span></li>
+      <li><b>Read the contract</b><span>The pinned spec and one tested example.</span></li>
+      <li><b>Change the code</b><span>Edit the private implementation.</span></li>
+      <li><b>Verify</b><span>Run the same checker as CI.</span></li>
+      <li><b>Replay a failure</b><span>Run the counterexample from its recorded schedule.</span></li>
+    </ol>
+    <div class="scroll">
+      <table class="tbl min720">
+        <thead><tr><th scope="col">Agent need</th><th scope="col">Proposed tool</th></tr></thead>
+        <tbody>
+          <tr><th scope="row" class="nowrap">Find the owner, learn the idiom</th><td>A search tool accepts an intent or an exact symbol. It returns the owning module, stable spec and law IDs, the package version, and links to short docs and examples checked against that version.</td></tr>
+          <tr><th scope="row" class="nowrap">Check a change</th><td>A verify tool calls the same checker as CI. Its structured result names the input revision, the dependency and toolchain identity, the affected laws, assumptions, proof status, and bounds. Diagnostics carry source spans, the observed violation, and candidate repairs when available.</td></tr>
+          <tr><th scope="row" class="nowrap">Understand a failure</th><td>A replay tool runs the counterexample with its recorded inputs, versions, and schedule. The CLI gives the same operation for clients with incomplete MCP support.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="twocol">
+      <div class="callout">
+        <h3>Why the search tool must stand alone</h3>
+        <p>MCP separates prompts, resources, and callable tools. Host support and context selection vary. So the search tool must work when a host does not attach documentation or prompt templates on its own.</p>
+      </div>
+      <div class="callout">
+        <h3>How adoption is measured</h3>
+        <p>Three arms: the existing host-language workflow, Borsuk with local docs and CLI, and Borsuk with guided prompts and MCP. Trials include stale docs, full queues, changed revisions, and a shortcut that weakens the public law. Record verified task success, false proof claims, human interventions, time, and tokens. Real adoption: pilot teams choose a second workflow after the first succeeds.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- DECISIONS -->
+  <section id="decisions" aria-labelledby="h-dec">
+    <div class="sec-head">
+      <p class="kick">Open questions</p>
+      <h2 id="h-dec">Decisions the design leaves open</h2>
+    </div>
+    <div class="frame scroll">
+      <table class="tbl min640">
+        <thead><tr><th scope="col">Decision</th><th scope="col">Options in the design</th><th scope="col">Close in</th></tr></thead>
+        <tbody>
+          <tr><th scope="row" class="nowrap">Surface syntax</th><td>A: one edge per declaration. B: reactions grouped by source state.</td><td class="mono"><a href="#p0">P0</a></td></tr>
+          <tr><th scope="row" class="nowrap">Lean 4 scope</th><td>Which parts of the core theory get a machine-checked proof.</td><td class="mono"><a href="#p0">P0</a></td></tr>
+          <tr><th scope="row" class="nowrap">Evidence reuse</th><td>Exact revision match, or reuse with a checked equivalence.</td><td class="mono"><a href="#p3">P3</a></td></tr>
+          <tr><th scope="row" class="nowrap">Cost model</th><td>What a resource bound counts: payload, queue node, logging, cleanup.</td><td class="mono"><a href="#p3">P3</a></td></tr>
+          <tr><th scope="row" class="nowrap">Move atomicity</th><td>One common transaction boundary, or a cross-shard protocol.</td><td class="mono"><a href="#p4">P4</a></td></tr>
+          <tr><th scope="row" class="nowrap">Verus scope</th><td>Which runtime parts get a proof.</td><td class="mono"><a href="#p4">P4</a></td></tr>
+          <tr><th scope="row" class="nowrap">Release policy</th><td>When a module with unresolved obligations can ship, and its label.</td><td class="mono"><a href="#p8">P8</a></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- LIMITS -->
+  <section id="limits" aria-labelledby="h-limits">
+    <div class="sec-head">
+      <p class="kick">Status</p>
+      <h2 id="h-limits">What is not established</h2>
+    </div>
+    <ul class="limits">
+      <li><b>No formal semantics.</b> The full language still needs typing rules, evaluation rules, and soundness proofs.</li>
+      <li><b>No implementation.</b> No compiler, runtime, checker, or agent tool exists.</li>
+      <li><b>No benchmark.</b> Every performance number on this page is a target.</li>
+      <li><b>No agent trial.</b> No agent benchmark or adoption trial has run.</li>
+      <li><b>Abstract models.</b> The finite models assume an atomic commit. They test no real storage, MCP client, implementation, or hardware.</li>
+      <li><b>Trace comparison is not proof.</b> Interpreter and native traces give evidence. Compiler correctness needs its own refinement argument.</li>
+    </ul>
+  </section>
+
+  <!-- PRIOR ART -->
+  <section id="prior-art" aria-labelledby="h-prior">
+    <div class="sec-head">
+      <p class="kick">Research</p>
+      <h2 id="h-prior">Prior art and what Borsuk takes from it</h2>
+    </div>
+    <div class="scroll">
+      <table class="tbl min720">
+        <thead><tr><th scope="col">Topic</th><th scope="col">Precedents</th><th scope="col">Lesson for Borsuk</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">Typed protocols</th><td><a href="https://adam.chlipala.net/papers/UrWebPOPL15/UrWebPOPL15.pdf" target="_blank" rel="noopener">Ur/Web</a> uses one type discipline for client, server, and database. <a href="https://mrg.cs.ox.ac.uk/publications/deadlock-free-asynchronous-message-reordering-in-rust/main.pdf" target="_blank" rel="noopener">Rumpsteak</a> checks message order with multiparty session types.</td><td>Expose the shape of a message and the step that is legal after it.</td></tr>
+          <tr><th scope="row">FSM semantics</th><td><a href="https://p-org.github.io/P/advanced/psemantics/" target="_blank" rel="noopener">P</a> starts from communicating state machines. <a href="https://distcompiler.github.io/" target="_blank" rel="noopener">PGo</a> turns one description into a verification target and Go code.</td><td>One typed transition form drives the interpreter, verifier, traces, and optimizer.</td></tr>
+          <tr><th scope="row">Composition</th><td><a href="https://p-org.github.io/P/manual/modulesystem/" target="_blank" rel="noopener">P modules</a> compose machines. <a href="https://iris-project.org/pdfs/2023-sosp-grove.pdf" target="_blank" rel="noopener">Grove</a> verifies distributed Go with replication and crash recovery.</td><td>Hide state and proof lemmas. Every relied-on assumption needs a provider.</td></tr>
+          <tr><th scope="row">Ownership and reuse</th><td><a href="https://doc.rust-lang.org/nomicon/races.html" target="_blank" rel="noopener">Rust</a> sets data-race freedom. <a href="https://tutorial.ponylang.io/reference-capabilities/passing-and-sharing.html" target="_blank" rel="noopener">Pony</a> transfers isolated objects. <a href="https://www.microsoft.com/en-us/research/publication/perceus-garbage-free-reference-counting-with-reuse-2/" target="_blank" rel="noopener">Perceus</a> reuses storage. <a href="https://www.microsoft.com/en-us/research/wp-content/uploads/2023/05/fbip.pdf" target="_blank" rel="noopener">FP²</a> runs admitted functions with no allocation.</td><td>Offer pure transitions plus a checked in-place subset for hot paths.</td></tr>
+          <tr><th scope="row">Resource bounds</th><td><a href="https://oxcaml.org/documentation/miscellaneous-extensions/zero_alloc_check/" target="_blank" rel="noopener">OxCaml</a> checks allocation across calls and has <a href="https://oxcaml.org/documentation/modes/intro/" target="_blank" rel="noopener">locality and uniqueness modes</a>. <a href="https://www.cs.cmu.edu/~fp/papers/rast20.pdf" target="_blank" rel="noopener">Rast</a> puts resource bounds in session types.</td><td>First contract: this local handoff allocates zero heap bytes, also when the queue is full.</td></tr>
+          <tr><th scope="row">Durable mutations</th><td><a href="https://web.stanford.edu/~ouster/cgi-bin/papers/rifl.pdf" target="_blank" rel="noopener">RIFL</a> ties retry identity to a completion record. <a href="https://www.vldb.org/pvldb/vol8/p185-bailis.pdf" target="_blank" rel="noopener">Invariant confluence</a> says when updates merge safely. <a href="https://www.usenix.org/conference/osdi23/presentation/chang" target="_blank" rel="noopener">vMVCC</a> shows the proof and speed trade-off.</td><td>Serialize claims on one scarce resource. Keep independent keys concurrent.</td></tr>
+          <tr><th scope="row">Distributed verification</th><td><a href="https://p-org.github.io/P/advanced/PVerifierLanguageExtensions/announcement/" target="_blank" rel="noopener">PVerifier</a> proves inductive invariants. <a href="https://www.usenix.org/conference/osdi24/presentation/sun-xudong" target="_blank" rel="noopener">Anvil</a> verifies liveness of Kubernetes controllers. <a href="https://apple.github.io/foundationdb/testing.html" target="_blank" rel="noopener">FoundationDB</a> uses deterministic simulation.</td><td>Report five distinct evidence results. A failure must replay.</td></tr>
+          <tr><th scope="row">Spec quality and upgrades</th><td><a href="https://arxiv.org/abs/2511.15403" target="_blank" rel="noopener">MutDafny</a> finds weak specs. <a href="https://sr-lab.github.io/publication/2026/ASE2/" target="_blank" rel="noopener">DSpec2Test</a> derives tests. <a href="https://www.cs.ubc.ca/~bestchai/papers/oopsla25-trace-link.pdf" target="_blank" rel="noopener">TraceLinking</a> compares traces with designs. <a href="https://d1.awsstatic.com/builderslibrary/pdfs/ensuring-rollback-safety-during-deployments.pdf" target="_blank" rel="noopener">Rollback safety</a> covers mixed versions.</td><td>Give agents a semantic contract diff and an old/new compatibility matrix.</td></tr>
+          <tr><th scope="row">Specs as interfaces</th><td><a href="https://lamport.azurewebsites.net/tla/proving-safety.pdf" target="_blank" rel="noopener">TLA+ refinement mappings</a> relate abstraction levels. <a href="https://lean-lang.org/doc/reference/latest/Functors___-Monads-and--do--Notation/" target="_blank" rel="noopener">Lean interface laws</a> package laws with an interface.</td><td>Keep public laws stable while implementers change private lemmas.</td></tr>
+          <tr><th scope="row">Agent tooling</th><td><a href="https://modelcontextprotocol.io/docs/learn/server-concepts" target="_blank" rel="noopener">MCP primitives</a>, <a href="https://doc.rust-lang.org/rustc/json.html" target="_blank" rel="noopener">rustc JSON diagnostics</a>, <a href="https://www.anthropic.com/engineering/writing-tools-for-agents" target="_blank" rel="noopener">tool evaluation for agents</a>.</td><td>Structured spans and repairs. Measure tools on realistic agent tasks.</td></tr>
+          <tr><th scope="row">Code generation</th><td><a href="https://llvm.org/docs/LangRef.html" target="_blank" rel="noopener">LLVM IR</a>, <a href="https://clang.llvm.org/docs/ThinLTO.html" target="_blank" rel="noopener">ThinLTO</a>, <a href="https://llvm.org/docs/Vectorizers.html" target="_blank" rel="noopener">LLVM vectorizers</a>, <a href="https://github.com/verus-lang/verus" target="_blank" rel="noopener">Verus</a>.</td><td>Borsuk shows that a reduction is legal before machine-code generation.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- GLOSSARY -->
+  <section id="glossary" aria-labelledby="h-gloss">
+    <div class="sec-head">
+      <p class="kick">Reference</p>
+      <h2 id="h-gloss">Glossary</h2>
+    </div>
+    <dl class="gloss">
+      <div><dt>FSM (finite state machine)</dt><dd>A program part with a fixed set of control states. An input moves it along a declared edge to the next state.</dd></div>
+      <div><dt>Transition, turn</dt><dd>One step of a machine. It takes the state and one input, and gives the next state, replies, and effect requests.</dd></div>
+      <div><dt>Effect</dt><dd>A request to the outside world, for example a storage write. Its result returns as a new input.</dd></div>
+      <div><dt>Protocol</dt><dd>The legal order and types of messages between two or more parties.</dd></div>
+      <div><dt>Session types</dt><dd>Types that describe a protocol, including what may happen after each message.</dd></div>
+      <div><dt>Spec, law</dt><dd>A spec is a named public contract. A law is a property that every permitted history must satisfy.</dd></div>
+      <div><dt>Refinement</dt><dd>Each observable behavior of the implementation is a behavior that the spec allows.</dd></div>
+      <div><dt>Proof obligation</dt><dd>A statement that the checker must prove before a caller can rely on a law.</dd></div>
+      <div><dt>Model checking</dt><dd>A check that explores all reachable states of a model, usually within bounds.</dd></div>
+      <div><dt>Deterministic simulation</dt><dd>Test runs where the scheduler, clock, and faults come from a seed, so a failure replays exactly.</dd></div>
+      <div><dt>Typed IR</dt><dd>Intermediate representation: the checked internal form of a program. All Borsuk tools read it.</dd></div>
+      <div><dt>LLVM</dt><dd>A widely used compiler back end that turns LLVM IR into machine code.</dd></div>
+      <div><dt>Ahead of time</dt><dd>Compilation to native code before the program runs.</dd></div>
+      <div><dt>ThinLTO, PGO</dt><dd>Link-time optimization across modules, and optimization that uses measurements from real runs.</dd></div>
+      <div><dt>SIMD</dt><dd>Processor instructions that apply one operation to many values at once.</dd></div>
+      <div><dt>Ownership, borrow</dt><dd>Ownership says which part of a program may change a value. A borrow is temporary access that ends at a known point.</dd></div>
+      <div><dt>Mailbox</dt><dd>A bounded queue of inputs for a machine that runs on its own schedule.</dd></div>
+      <div><dt>Retry identity</dt><dd>A command ID that the client keeps across retries, so the service can recognize a repeat.</dd></div>
+      <div><dt>Lookup window</dt><dd>The time during which the service keeps a decision, so a retry can find it.</dd></div>
+      <div><dt>Group commit</dt><dd>One storage flush that makes many commands durable.</dd></div>
+      <div><dt>p99.9 latency</dt><dd>The latency that 99.9 % of requests meet or beat.</dd></div>
+      <div><dt>MCP</dt><dd>Model Context Protocol: an open standard that lets AI agents call tools and read resources.</dd></div>
+      <div><dt>Lean 4</dt><dd>A proof assistant and programming language for machine-checked proofs.</dd></div>
+      <div><dt>Verus</dt><dd>A tool that verifies Rust code against written specifications.</dd></div>
+    </dl>
+  </section>
+
+  <footer>
+    <p>Source: the design document "Borsuk · An FSM-first language for distributed systems", 18 November 2026. This page summarizes that document.</p>
+    <p>The phase plan, the phase order, and the map from rules to phases are a proposal added on this page. The source design lists the components but does not order them.</p>
+  </footer>
+
+</div>
+
+<script>
+(() => {
+  const svg = document.getElementById('graph');
+  if (svg) {
+    const edges = Array.from(svg.querySelectorAll('.edge'));
+    const nodes = Array.from(svg.querySelectorAll('.node'));
+    const show = (id) => {
+      const linked = new Set([id]);
+      edges.forEach((e) => {
+        const on = e.dataset.from === id || e.dataset.to === id;
+        e.classList.toggle('on', on);
+        if (on) { linked.add(e.dataset.from); linked.add(e.dataset.to); }
+      });
+      nodes.forEach((n) => n.classList.toggle('on', linked.has(n.dataset.id)));
+      svg.classList.add('focus');
+    };
+    const clear = () => {
+      svg.classList.remove('focus');
+      edges.forEach((e) => e.classList.remove('on'));
+      nodes.forEach((n) => n.classList.remove('on'));
+    };
+    nodes.forEach((n) => {
+      n.addEventListener('mouseenter', () => show(n.dataset.id));
+      n.addEventListener('focus', () => show(n.dataset.id));
+      n.addEventListener('mouseleave', clear);
+      n.addEventListener('blur', clear);
+    });
+  }
+
+  const note = document.getElementById('mnote');
+  const dots = Array.from(document.querySelectorAll('.dot'));
+  const pick = (d) => {
+    dots.forEach((x) => x.setAttribute('aria-pressed', x === d ? 'true' : 'false'));
+    const b = document.createElement('b');
+    b.textContent = d.dataset.r + ' · ' + d.dataset.p;
+    const s = document.createElement('span');
+    s.textContent = d.dataset.n;
+    note.replaceChildren(b, s);
+  };
+  dots.forEach((d) => {
+    d.setAttribute('aria-label', d.dataset.r + ' in ' + d.dataset.p + ': ' + d.dataset.n);
+    d.setAttribute('aria-pressed', 'false');
+    d.addEventListener('click', () => pick(d));
+    d.addEventListener('mouseenter', () => pick(d));
+  });
+  const first = dots.find((d) => d.dataset.r === 'L4' && d.dataset.p === 'P4');
+  if (first && note) pick(first);
+
+  const bar = document.querySelector('.toc-in');
+  const links = Array.from(document.querySelectorAll('.toc-in a:not(.brand)'));
+  if (bar && links.length && 'IntersectionObserver' in window) {
+    const byId = new Map(links.map((a) => [a.getAttribute('href').slice(1), a]));
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach((e) => {
+        if (!e.isIntersecting) return;
+        const a = byId.get(e.target.id);
+        if (!a) return;
+        links.forEach((x) => x.removeAttribute('aria-current'));
+        a.setAttribute('aria-current', 'true');
+        bar.scrollLeft = a.offsetLeft - bar.clientWidth / 2 + a.clientWidth / 2;
+      });
+    }, { rootMargin: '-40% 0px -55% 0px' });
+    byId.forEach((a, id) => {
+      const el = document.getElementById(id);
+      if (el) io.observe(el);
+    });
+  }
+})();
+</script>
