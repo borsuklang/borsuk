@@ -26,6 +26,12 @@ Status: released, tag `v0.0.1`.
 | [Plan](releases/v0.0.1/plan.md) | The contract of v0.0.1: the core IR grammar, the semantics, the static rules, the proof, the corpus, the layout and `check.sh`. |
 | [Goal](releases/v0.0.1/goal.md) | The instructions for the agent that built v0.0.1: the roles, the loop for each phase, the gates and the stop rules. |
 
+## Process
+
+| Document | Content |
+|---|---|
+| [Commit messages](process/commits.md) | The Conventional Commits rule, the types, the scopes, and the setup of the `cog` tool and its hook. |
+
 ## Code
 
 | Path | Content |
