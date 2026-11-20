@@ -52,6 +52,12 @@ Status: released, tag `v0.0.1`.
 | [Plan review skill](../.claude/skills/plan-review/SKILL.md) | The skill that runs the plan review of the release goal: the author checklist, the reviewer brief, the round protocol and the fix rules. |
 | [Commit messages](process/commits.md) | The Conventional Commits rule, the types, the scopes, and the setup of the `cog` tool and its hook. |
 
+## Research
+
+| Document | Content |
+|---|---|
+| [Prior art for the language eval](research/2026-11-20-language-eval-prior-art.md) | The evals, task sets, harnesses and statistics that a later eval can reuse. That eval compares Borsuk with other languages on tokens and errors. |
+
 ## Code
 
 | Path | Content |
