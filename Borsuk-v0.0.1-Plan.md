@@ -71,6 +71,7 @@ Names and types:
 
 - `(in S ...)` binds the fields of state `S` by their declared names. `(in G ...)` for a group binds no name.
 - `(on I ...)` binds the parameters of input `I` by their declared names. `Fired` binds `ticket`.
+- A local name is in scope from its declaration to the end of the enclosing form: the `fn` for a parameter, the block for a `let` name, the arm for a pattern binder, and the example for an actor. So an actor is not in scope in the `key` of its example.
 - The inputs of a machine are the messages of its protocol, and `Fired` when its `uses` holds `Timer`.
 - `(new T e*)` takes the record fields or the variant fields in declared order. A newtype has one constructor. `(new T e)` builds it, and the pattern `(T x)` opens it. A variant with no field is `(new Red)`, and its pattern is `(Red)`. `(get e F)` works on records only.
 - An operation is `ConsoleOut.print` (`Text` to `Unit`), `Timer.after` (`Duration` to `Ticket`), `Timer.cancel` (`Ticket` to `Unit`), or a `call` of a `fn` with `(uses ConsoleOut)`.
@@ -78,7 +79,7 @@ Names and types:
 - The expression of an `outcome` fact has the result type of the command. The expression of an `answer` fact has the result type of the query.
 - `==` works on each type. `<` works on `Int`, `Time` and `Duration`. `+`, `-` and `*` work on `Int`. `and` and `not` work on `Bool`.
 - A `match` subject has the type `Bool`, `Option`, `Result`, an enum or a newtype.
-- In an example, an actor name is the `Principal` with that name. `(step N)` is the `StepId` with sequence `N`. `(ticket N)` is the ticket with sequence `N` and index 0.
+- In an example, an actor name is the `Principal` with that name. `(step N)` is the `StepId` with sequence `N`. `(ticket N)` is the ticket with sequence `N` and index 0. A `(step N)` or a `(ticket N)` in the `key` of an example is a `type-mismatch`, because its value would contain the key.
 
 This is the `Confirm` cell of the `Held` block of the Slot machine in this form.
 
@@ -148,11 +149,11 @@ The result `(next)` marks a `Fired` step that ends in `next` or `stay`. In the t
 | Code | The checker refuses | Message |
 |---|---|---|
 | `parse` | Text that is not a valid S-expression, invalid UTF-8, a form that is not in the grammar, a reserved word as a declared name, or `true` or `false` as a local name | ``text is not a program`` |
-| `unknown-name` | A name with no declaration of the kind that its position needs. An input that the machine does not have, a state of a different machine, `Fired` on a `send` line, and `Fired` on a `fire` line for a machine without `Timer` are such names. | ``name `N` is not declared`` |
+| `unknown-name` | A name with no declaration of the kind that its position needs. An input that the machine does not have, a state of a different machine, a state in a `fn`, `Fired` on a `send` line, and `Fired` on a `fire` line for a machine without `Timer` are such names. | ``name `N` is not declared`` |
 | `duplicate-name` | A name declared twice, a local name that equals a declared name or a local name in scope, or two names in one list of record fields, state fields or parameters | ``name `N` is declared twice`` |
 | `recursion` | A `fn` body that calls a `fn` that the file declares after it, or the `fn` itself | `` `F` calls `G` before its declaration`` |
 | `wrong-ending` | A tail that the context does not permit (table below), or an operation on a path that ends in `reject`, `answer`, `ignore stale` or `impossible` | ``wrong ending in `ITEM` `` |
-| `type-mismatch` | A type that differs from the type its position needs, a wrong number of arguments, a `get` of a field that the record does not have, a pattern of a type that differs from the subject type, an `outcome` fact on a line that is not a `send` of a command, or an `answer` fact on a line that is not a `send` of a query | ``type mismatch in `ITEM` `` |
+| `type-mismatch` | A type that differs from the type its position needs, a wrong number of arguments, a `get` of a field that the record does not have, a pattern of a type that differs from the subject type, an `outcome` fact on a line that is not a `send` of a command, an `answer` fact on a line that is not a `send` of a query, or a `(step N)` or a `(ticket N)` in the `key` of an example | ``type mismatch in `ITEM` `` |
 | `match-arms` | A `match` whose arms do not have each constructor of the subject type exactly one time | ``match in `ITEM` does not name each constructor once`` |
 | `effect-position` | An operation that is not the whole right side of `let` or the body of `do`, or a `do` without an operation | ``wrong operation position in `ITEM` `` |
 | `effect-not-declared` | An operation whose effect is not in `uses` | `` `ITEM` does not declare effect `E` `` |

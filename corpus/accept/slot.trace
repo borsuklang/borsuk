@@ -1,0 +1,16 @@
+(step (step Slot (SlotId 7) 1 1) (now (time 0)) (deadline (time 0)) (by (principal "admin")) (input (Create)) (result (outcome (unit))) (state (Free)) (outputs))
+(step (step Slot (SlotId 7) 1 2) (now (time 0)) (deadline (time 0)) (by (principal "a")) (input (Hold)) (result (outcome (HoldToken (step Slot (SlotId 7) 1 2)))) (state (Held (principal "a") (HoldToken (step Slot (SlotId 7) 1 2)) (ticket Slot (SlotId 7) 1 2 0))) (outputs (Timer.after (dur 30000000000) (ticket Slot (SlotId 7) 1 2 0))))
+(step (step Slot (SlotId 7) 1 3) (now (time 0)) (deadline (time 0)) (by (principal "runtime")) (input (Fired (ticket Slot (SlotId 7) 1 2 0))) (result (next)) (state (Free)) (outputs))
+(step (step Slot (SlotId 7) 1 4) (now (time 0)) (deadline (time 0)) (by (principal "b")) (input (Hold)) (result (outcome (HoldToken (step Slot (SlotId 7) 1 4)))) (state (Held (principal "b") (HoldToken (step Slot (SlotId 7) 1 4)) (ticket Slot (SlotId 7) 1 4 0))) (outputs (Timer.after (dur 30000000000) (ticket Slot (SlotId 7) 1 4 0))))
+(step (step Slot (SlotId 7) 1 5) (now (time 0)) (deadline (time 0)) (by (principal "runtime")) (input (Fired (ticket Slot (SlotId 7) 1 2 0))) (result (ignored)) (state (Held (principal "b") (HoldToken (step Slot (SlotId 7) 1 4)) (ticket Slot (SlotId 7) 1 4 0))) (outputs))
+pass old_timer_keeps_second_hold
+(step (step Slot (SlotId 7) 1 1) (now (time 0)) (deadline (time 0)) (by (principal "admin")) (input (Create)) (result (outcome (unit))) (state (Free)) (outputs))
+(step (step Slot (SlotId 7) 1 2) (now (time 0)) (deadline (time 0)) (by (principal "a")) (input (Hold)) (result (outcome (HoldToken (step Slot (SlotId 7) 1 2)))) (state (Held (principal "a") (HoldToken (step Slot (SlotId 7) 1 2)) (ticket Slot (SlotId 7) 1 2 0))) (outputs (Timer.after (dur 30000000000) (ticket Slot (SlotId 7) 1 2 0))))
+(step (step Slot (SlotId 7) 1 3) (now (time 0)) (deadline (time 0)) (by (principal "a")) (input (Confirm (HoldToken (step Slot (SlotId 7) 1 2)))) (result (outcome (unit))) (state (Booked (principal "a") (HoldToken (step Slot (SlotId 7) 1 2)))) (outputs (Timer.cancel (ticket Slot (SlotId 7) 1 2 0))))
+(step (step Slot (SlotId 7) 1 4) (now (time 0)) (deadline (time 0)) (by (principal "a")) (input (Confirm (HoldToken (step Slot (SlotId 7) 1 2)))) (result (outcome (unit))) (state (Booked (principal "a") (HoldToken (step Slot (SlotId 7) 1 2)))) (outputs))
+pass holder_confirms_twice
+(refused (Slot (SlotId 7)) (now (time 0)) (deadline (time 0)) (by (principal "c")) (input (Create)) forbidden)
+(step (step Slot (SlotId 7) 1 1) (now (time 0)) (deadline (time 0)) (by (principal "c")) (input (Hold)) (result (reject NoSlot)) (state (Absent)) (outputs))
+(query (Slot (SlotId 7)) (now (time 0)) (deadline (time 0)) (by (principal "c")) (input (Owner)) (result (answer (none))))
+(step (step Slot (SlotId 7) 1 2) (now (time 0)) (deadline (time 0)) (by (principal "runtime")) (input (Fired (ticket Slot (SlotId 7) 1 1 0))) (result (fault impossible)) (state (Absent)) (outputs))
+pass absent_slot_refuses
