@@ -236,6 +236,11 @@ def findFn (p : Program) (name : Name) : Option Fn :=
     | .fn f => if f.name == name then some f else none
     | _ => none
 
+def findMachine (p : Program) (name : Name) : Option Machine :=
+  p.items.findSome? fun
+    | .machine m => if m.name == name then some m else none
+    | _ => none
+
 def findMsg (p : Program) (m : Machine) (name : Name) : Option Msg :=
   (findProtocol p m.protocol).bind fun q => q.msgs.find? (·.name == name)
 

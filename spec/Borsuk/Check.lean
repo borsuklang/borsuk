@@ -71,11 +71,6 @@ def EnvField.text : EnvField → String
   | .sender => "sender"
   | .deadline => "deadline"
 
-def findMachine (p : Program) (name : Name) : Option Machine :=
-  p.items.findSome? fun
-    | .machine m => if m.name == name then some m else none
-    | _ => none
-
 def findRecord (p : Program) (name : Name) : Option (List Param) :=
   p.items.findSome? fun
     | .record r fields => if r == name then some fields else none

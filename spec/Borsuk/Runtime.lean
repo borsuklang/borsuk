@@ -16,6 +16,8 @@ structure MachineState where
   fields : List Value
 
 structure Instance where
+  machine : Name
+  key : Value
   state : MachineState
   seq : Int
 
@@ -31,8 +33,8 @@ def Event.reply : Event → Option Reply
 
 def life : Int := 1
 
-def start (m : Machine) : Instance :=
-  { state := { name := m.init, fields := [] }, seq := 0 }
+def start (m : Machine) (key : Value) : Instance :=
+  { machine := m.name, key := key, state := { name := m.init, fields := [] }, seq := 0 }
 
 def cellLocals (p : Program) (m : Machine) (st : MachineState) (target : Name) (env : Envelope) :
     List (Name × Value) :=
@@ -68,7 +70,7 @@ def step (p : Program) (m : Machine) (inst : Instance) (env : Envelope) :
   | .error f => some ({ inst with seq := env.seq }, .step env (.fault f) inst.state [])
   | .ok (ending, outs) =>
     let (reply, state) ← settle inst.state ending
-    some ({ state := state, seq := env.seq }, .step env reply state outs)
+    some ({ inst with state := state, seq := env.seq }, .step env reply state outs)
 
 def query (p : Program) (m : Machine) (inst : Instance) (env : Envelope) :
     Option (Instance × Event) := do
@@ -78,15 +80,15 @@ def query (p : Program) (m : Machine) (inst : Instance) (env : Envelope) :
     let (reply, _) ← settle inst.state ending
     some (inst, .query env reply)
 
-def deliver (p : Program) (m : Machine) (key : Value) (inst : Instance) (now deadline : Int)
-    (sender : Name) (roles : List Name) (input : Name) (args : List Value) :
-    Option (Instance × Event) :=
+def deliver (p : Program) (inst : Instance) (now deadline : Int) (caller : Actor) (input : Name)
+    (args : List Value) : Option (Instance × Event) := do
+  let m ← findMachine p inst.machine
   let env (seq : Int) : Envelope :=
-    { machine := m.name, key := key, life := life, seq := seq, now := now, deadline := deadline,
-      sender := sender, input := input, args := args }
+    { machine := inst.machine, key := inst.key, life := life, seq := seq, now := now,
+      deadline := deadline, sender := caller.name, input := input, args := args }
   match findMsg p m input with
   | some (.command _ _ _ _ (some role)) =>
-    if roles.contains role then step p m inst (env (inst.seq + 1))
+    if caller.roles.contains role then step p m inst (env (inst.seq + 1))
     else some (inst, .refused (env inst.seq))
   | some (.query ..) => query p m inst (env inst.seq)
   | _ => step p m inst (env (inst.seq + 1))

@@ -39,29 +39,28 @@ def holds (inst : Option (Name × Value)) (ev : Event) (state : MachineState) : 
   | .ignored => ev.reply == some Reply.ignored
   | .state s args => state.name == s && xvalues inst args == some state.fields
 
-def actorRoles (ex : Example) (name : Name) : List Name :=
-  ((ex.actors.find? (·.name == name)).map (·.roles)).getD []
+def findActor (ex : Example) (name : Name) : Actor :=
+  (ex.actors.find? (·.name == name)).getD { name := name, roles := [] }
 
 def lineInput (inst : Option (Name × Value)) (ex : Example) :
-    Line → Option (Name × List Name × Name × List Value × List Fact)
+    Line → Option (Actor × Name × List Value × List Fact)
   | .send a input args facts =>
-    (xvalues inst args).map fun vs => (a, actorRoles ex a, input, vs, facts)
+    (xvalues inst args).map fun vs => (findActor ex a, input, vs, facts)
   | .fire t facts =>
-    (xvalue inst t).map fun v => ("runtime", [], firedName, [v], facts)
+    (xvalue inst t).map fun v => ({ name := "runtime", roles := [] }, firedName, [v], facts)
 
-def runLines (p : Program) (m : Machine) (key : Value) (ex : Example) :
-    Nat → Instance → List Line → IO Bool
+def runLines (p : Program) (ex : Example) : Nat → Instance → List Line → IO Bool
   | _, _, [] => do
     IO.println s!"pass {ex.name}"
     pure true
   | n, inst, l :: rest => do
-    let here := some (m.name, key)
-    let result := (lineInput here ex l).bind fun (sender, roles, input, args, facts) =>
-      (deliver p m key inst 0 0 sender roles input args).map fun r => (r, facts)
+    let here := some (inst.machine, inst.key)
+    let result := (lineInput here ex l).bind fun (caller, input, args, facts) =>
+      (deliver p inst 0 0 caller input args).map fun r => (r, facts)
     match result with
     | some ((inst', ev), facts) =>
       IO.println (showEvent ev)
-      if facts.all (holds here ev inst'.state) then runLines p m key ex (n + 1) inst' rest
+      if facts.all (holds here ev inst'.state) then runLines p ex (n + 1) inst' rest
       else do
         IO.println s!"fail {ex.name}: line {n}"
         pure false
@@ -71,7 +70,7 @@ def runLines (p : Program) (m : Machine) (key : Value) (ex : Example) :
 
 def runExample (p : Program) (ex : Example) : IO Bool := do
   match findMachine p ex.machine, xvalue none ex.key with
-  | some m, some key => runLines p m key ex 1 (start m) ex.lines
+  | some m, some key => runLines p ex 1 (start m key) ex.lines
   | _, _ => do
     IO.println s!"fail {ex.name}: line 1"
     pure false
