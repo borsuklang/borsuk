@@ -1,6 +1,6 @@
 # Borsuk milestones: v0.0.1 to v0.1.0
 
-Status: working plan. The design is in `Borsuk-Language-Core-v0.1.html`.
+Status: working plan. The design is in [`language-core-v0.1.html`](../design/language-core-v0.1.html).
 
 ## What the milestones are
 

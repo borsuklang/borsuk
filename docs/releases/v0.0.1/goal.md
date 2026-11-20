@@ -1,12 +1,12 @@
 # Goal: build Borsuk v0.0.1
 
-Build Borsuk v0.0.1 in `/home/navaro/Workplace/borsuk`. Obey `Borsuk-v0.0.1-Plan.md`. Finish the phases P0 to P4. The goal is complete when `./check.sh all` passes on `main` and the tag `v0.0.1` is on the remote.
+Build Borsuk v0.0.1 in `/home/navaro/Workplace/borsuk`. Obey [`plan.md`](plan.md). Finish the phases P0 to P4. The goal is complete when `./check.sh all` passes on `main` and the tag `v0.0.1` is on the remote.
 
 ## Read first
 
-1. `Borsuk-v0.0.1-Plan.md`. Read all of it before any work.
-2. `Borsuk-Language-Core-v0.1.html`, the design.
-3. `Borsuk-Milestones.md`. It lists the parts of later milestones.
+1. [`plan.md`](plan.md). Read all of it before any work.
+2. [`language-core-v0.1.html`](../../design/language-core-v0.1.html), the design.
+3. [`milestones.md`](../../roadmap/milestones.md). It lists the parts of later milestones.
 
 ## Roles
 

@@ -1,7 +1,7 @@
 # Borsuk v0.0.1 work plan
 
-The agent that builds v0.0.1 follows `Borsuk-v0.0.1-Goal.md`.
-The sources are the design `Borsuk-Language-Core-v0.1.html` (sections 3, 4, 5, 10, 11, 16) and `Borsuk-Milestones.md`.
+The agent that builds v0.0.1 follows [`goal.md`](goal.md).
+The sources are the design [`language-core-v0.1.html`](../../design/language-core-v0.1.html) (sections 3, 4, 5, 10, 11, 16) and [`milestones.md`](../../roadmap/milestones.md).
 
 ## 1. Result
 
