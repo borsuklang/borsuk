@@ -50,11 +50,17 @@ A Lean module and its Rust mirror share one scope.
 | `eval` | `spec/Borsuk/Eval.lean`, `crates/borsuk-core/src/eval.rs` |
 | `runtime` | `spec/Borsuk/Runtime.lean`, `crates/borsuk-core/src/runtime.rs` |
 | `print` | `spec/Borsuk/Print.lean`, `crates/borsuk-core/src/print.rs` |
+| `float` | `spec/Borsuk/Float.lean`, `crates/borsuk-core/src/float.rs` |
+| `approx` | `spec/Borsuk/Approx.lean`, `crates/borsuk-core/src/approx.rs` |
+| `math` | `spec/Borsuk/Math.lean`, `crates/borsuk-core/src/math.rs` |
+| `decimal` | `spec/Borsuk/Decimal.lean`, `crates/borsuk-core/src/decimal.rs` |
+| `codec` | `spec/Borsuk/Codec.lean`, `crates/borsuk-core/src/codec.rs` |
 | `cli` | `spec/Main.lean`, `crates/borsuk-cli/` |
 | `proof` | `spec/Borsuk/Proofs/` |
 | `corpus` | `corpus/` |
 | `toolchain` | `rust-toolchain.toml`, `Cargo.toml`, `spec/lean-toolchain`, `spec/lakefile.toml` |
 | `git` | `cog.toml`, `.gitignore` |
+| `experiment` | `experiments/` |
 | `design`, `roadmap`, `release`, `process` | The matching folder in `docs/` |
 
 To add a scope, add it to `scopes` in `cog.toml` and to this table.

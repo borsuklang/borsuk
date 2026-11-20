@@ -1,0 +1,8 @@
+[package]
+name = "borsuk-oracle"
+edition = "2024"
+
+[workspace]
+
+[dependencies]
+rug = { version = "=1.30.0", default-features = false, features = ["integer", "rational", "float", "std"] }

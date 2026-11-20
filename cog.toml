@@ -18,6 +18,12 @@ scopes = [
   "roadmap",
   "release",
   "process",
+  "float",
+  "approx",
+  "math",
+  "decimal",
+  "codec",
+  "experiment",
 ]
 
 [git_hooks.commit-msg]

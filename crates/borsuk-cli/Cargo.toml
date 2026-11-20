@@ -9,3 +9,6 @@ path = "src/main.rs"
 
 [dependencies]
 borsuk-core = { path = "../borsuk-core" }
+
+[lints]
+workspace = true

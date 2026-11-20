@@ -12,3 +12,7 @@ dependencies = [
 [[package]]
 name = "borsuk-core"
 version = "0.0.1"
+
+[[package]]
+name = "borsuk-q1"
+version = "0.0.0"

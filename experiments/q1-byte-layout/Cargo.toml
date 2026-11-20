@@ -1,0 +1,8 @@
+[package]
+name = "borsuk-q1"
+edition = "2024"
+
+[dependencies]
+
+[lints]
+workspace = true

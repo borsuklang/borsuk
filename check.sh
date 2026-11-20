@@ -5,9 +5,13 @@ cd "$(dirname "$0")" || exit 2
 
 ref=spec/.lake/build/bin/brk-ref
 rust=target/release/brk
-codes=(parse unknown-name duplicate-name recursion wrong-ending type-mismatch match-arms
-  effect-position effect-not-declared env-position init-has-fields duplicate-cell
+codes=(parse unknown-name duplicate-name recursion recursive-type wrong-ending type-mismatch
+  match-arms effect-position effect-not-declared env-position init-has-fields duplicate-cell
   missing-cell reject-not-declared bad-entry)
+theorems=(Borsuk.coverage Borsuk.decode_encode Borsuk.encode_decode Borsuk.encode_typed
+  Borsuk.encode_total)
+harnesses=(codec_round_trip_scalars codec_round_trip_composite codec_canonical)
+covers=(7 2 4)
 
 tmp=$(mktemp -d) || exit 2
 trap 'rm -rf "$tmp"' EXIT
@@ -51,39 +55,48 @@ step2() {
 }
 
 step3() {
-  local out line list axiom
+  local out line name list axiom n
+  local -a lines axioms
   out=$(cd spec && lake env lean Borsuk/Proofs/Axioms.lean 2>&1) || {
     echo "$out" >&2
     fail "step 3: lake env lean Borsuk/Proofs/Axioms.lean"
   }
-  if [ "$(printf '%s\n' "$out" | wc -l)" -ne 1 ]; then
-    echo "$out" >&2
-    fail "step 3: the output is not one axiom line"
+  echo "$out"
+  mapfile -t lines <<<"$out"
+  if [ "${#lines[@]}" -ne "${#theorems[@]}" ]; then
+    fail "step 3: the output does not have one axiom line for each theorem"
   fi
-  line=$out
-  echo "$line"
-  case "$line" in
-    "'Borsuk.coverage' does not depend on any axioms") ;;
-    "'Borsuk.coverage' depends on axioms: ["*"]")
-      list=${line#*\[}
-      list=${list%\]}
-      IFS=',' read -ra axioms <<<"$list"
-      for axiom in "${axioms[@]}"; do
-        axiom=${axiom# }
-        case "$axiom" in
-          propext | Classical.choice | Quot.sound) ;;
-          *) fail "step 3: Borsuk.coverage depends on the axiom $axiom" ;;
-        esac
-      done
-      ;;
-    *) fail "step 3: no axiom line for Borsuk.coverage" ;;
-  esac
-  pass "step 3: axioms of Borsuk.coverage"
+  for name in "${theorems[@]}"; do
+    n=0
+    for line in "${lines[@]}"; do
+      case "$line" in
+        "'$name' does not depend on any axioms")
+          n=$((n + 1))
+          ;;
+        "'$name' depends on axioms: ["*"]")
+          n=$((n + 1))
+          list=${line#*\[}
+          list=${list%\]}
+          IFS=',' read -ra axioms <<<"$list"
+          for axiom in "${axioms[@]}"; do
+            axiom=${axiom# }
+            case "$axiom" in
+              propext | Classical.choice | Quot.sound) ;;
+              *) fail "step 3: $name depends on the axiom $axiom" ;;
+            esac
+          done
+          ;;
+      esac
+    done
+    [ "$n" -eq 1 ] || fail "step 3: $name has $n axiom lines"
+  done
+  pass "step 3: axioms of ${#theorems[@]} theorems"
 }
 
 step4() {
   local rc=0
-  grep -rnE '^[[:space:]]*(//|/\*|--|/-)|[[:space:]](//|--)[[:space:]]' crates spec \
+  grep -rnE '^[[:space:]]*(//|/\*|--|/-)|[[:space:]](//|--)[[:space:]]' \
+    crates spec experiments corpus/oracle --exclude-dir=target \
     --include='*.rs' --include='*.lean' || rc=$?
   case "$rc" in
     1) ;;
@@ -131,9 +144,38 @@ step6() {
 }
 
 step7() {
-  local exe=$1
-  expect "$exe" test corpus/fail/wrong-fact.brk 1 corpus/fail/wrong-fact.out
-  pass "step 7: fail file with $exe"
+  local exe=$1 f n=0
+  [ -e corpus/fail/wrong-fact.brk ] || fail "step 7: corpus/fail/wrong-fact.brk does not exist"
+  for f in corpus/fail/*.brk; do
+    n=$((n + 1))
+    expect "$exe" test "$f" 1 "${f%.brk}.out"
+  done
+  pass "step 7: $n fail files with $exe"
+}
+
+step8() {
+  local i name want out rc
+  for i in "${!harnesses[@]}"; do
+    name=${harnesses[$i]}
+    want=${covers[$i]}
+    rc=0
+    out=$(systemd-run --user --scope -q -p MemoryMax=2G -p MemorySwapMax=0 \
+      timeout -k 10 900 nice -n 19 ionice -c3 cargo kani -p borsuk-core --harness "$name" 2>&1) ||
+      rc=$?
+    if [ "$rc" -ne 0 ]; then
+      printf '%s\n' "$out" | tail -40 >&2
+      fail "step 8: cargo kani --harness $name: exit $rc"
+    fi
+    if [ "$(printf '%s\n' "$out" | grep -cxF 'VERIFICATION:- SUCCESSFUL')" -ne 1 ]; then
+      printf '%s\n' "$out" | tail -40 >&2
+      fail "step 8: $name: the line VERIFICATION:- SUCCESSFUL is not there exactly one time"
+    fi
+    if ! grep -qE "\*\* $want of $want cover properties satisfied\$" <<<"$out"; then
+      printf '%s\n' "$out" | tail -40 >&2
+      fail "step 8: $name: no line with $want of $want cover properties satisfied"
+    fi
+    pass "step 8: kani harness $name"
+  done
 }
 
 stage=${1:-}
@@ -162,6 +204,7 @@ case "$stage" in
       step6 "$exe"
       step7 "$exe"
     done
+    step8
     ;;
   *)
     echo "usage: check.sh setup|lean|all" >&2
