@@ -40,6 +40,7 @@ Status: released, tag `v0.0.1`.
 | Document | Content |
 |---|---|
 | [Release goal](process/goal.md) | The standing goal for each release from v0.0.2: the order of authority, the roles, the loop for each phase, the rules, the stop rules and the final report. |
+| [Plan review skill](../.claude/skills/plan-review/SKILL.md) | The skill that runs the plan review of the release goal: the author checklist, the reviewer brief, the round protocol and the fix rules. |
 | [Commit messages](process/commits.md) | The Conventional Commits rule, the types, the scopes, and the setup of the `cog` tool and its hook. |
 
 ## Code

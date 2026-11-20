@@ -44,12 +44,12 @@ A higher rank decides a question that a lower rank does not answer. A disagreeme
 
 ## Plan review
 
-The owner starts a release only after its plan passes the plan review:
+The owner starts a release only after its plan passes the plan review. The skill `plan-review` (`.claude/skills/plan-review/`) runs it:
 
-1. A new Fable reviewer examines the plan against the design, the milestones, the plans of the earlier releases, this goal and the goals of the language.
-2. It reports each finding of the classes below, with the place and a fix.
-3. The author of the plan applies each finding that the sources support. The owner decides each finding that needs a decision.
-4. A new reviewer examines the corrected plan from the start. The review ends when one reviewer reports no finding.
+1. The author applies the author checklist of the skill, verifies each tool fact on the host, and asks the owner about each open choice before the first reviewer.
+2. A new Fable reviewer at xhigh effort examines the plan against the design, the milestones, the plans of the earlier releases, this goal and the goals of the language. It reports each finding of the classes below, with the place and a fix.
+3. The author applies each finding that the sources support. The owner decides each finding that needs a decision, and each point where two reviewers disagree.
+4. At most three full rounds run, each with a new reviewer. Then a new reviewer reports only UNBUILDABLE, CONTRADICTION and NOT-PLANNED findings. The review ends when such a round reports none, or when its findings need only a fix of one row or one sentence. More full rounds run only when the owner asks.
 
 | Class | Finding |
 |---|---|
