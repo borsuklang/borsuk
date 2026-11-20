@@ -1,0 +1,3 @@
+(program
+  (fn big () (Decimal 0) (uses)
+    (block (value (dec 100000000000000000000000000000000000000)))))

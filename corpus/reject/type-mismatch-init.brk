@@ -1,0 +1,2 @@
+(program
+  (record Tally (count Int) (label Text (init 0))))

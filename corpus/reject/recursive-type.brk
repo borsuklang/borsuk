@@ -1,0 +1,2 @@
+(program
+  (enum Chain (End) (Link Chain)))

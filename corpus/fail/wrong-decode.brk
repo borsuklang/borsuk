@@ -1,0 +1,2 @@
+(program
+  (decode seven Int "01000700000000000000" (value 8)))

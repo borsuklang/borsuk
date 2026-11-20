@@ -1,0 +1,10 @@
+(program
+  (protocol ClockApi
+    (command Set ((t Time)) Unit (rejects)))
+  (machine Clock (key Int) (protocol ClockApi) (uses) (init Idle)
+    (state Idle)
+    (in Idle
+      (on Set (block (stay (outcome (unit)))))))
+  (example set_time (machine Clock) (key 1)
+    (actor u)
+    (send u Set (time 0) (expect (outcome (unit))))))

@@ -1,0 +1,3 @@
+(program
+  (fn half () (Decimal 1) (uses)
+    (block (value (dec 00.5)))))

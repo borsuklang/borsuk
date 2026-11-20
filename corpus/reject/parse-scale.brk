@@ -1,0 +1,3 @@
+(program
+  (fn wide ((a (Decimal 38))) Unit (uses)
+    (block (value (unit)))))

@@ -1,0 +1,7 @@
+(program
+  (protocol PingApi
+    (query Ping () Unit))
+  (machine Pinger (key (Option StepId)) (protocol PingApi) (uses) (init Idle)
+    (state Idle)
+    (in Idle
+      (on Ping (block (answer (unit)))))))

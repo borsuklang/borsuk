@@ -1,0 +1,2 @@
+(program
+  (decode ghost StepId "0100" (value (step Ghost 1 1 1))))

@@ -5,9 +5,9 @@ cd "$(dirname "$0")" || exit 2
 
 ref=spec/.lake/build/bin/brk-ref
 rust=target/release/brk
-codes=(parse unknown-name duplicate-name recursion recursive-type wrong-ending type-mismatch
-  match-arms effect-position effect-not-declared env-position init-has-fields duplicate-cell
-  missing-cell reject-not-declared bad-entry)
+codes=(parse unknown-name duplicate-name recursion recursive-type layout-limit wrong-ending
+  type-mismatch match-arms effect-position effect-not-declared env-position init-has-fields
+  duplicate-cell missing-cell reject-not-declared bad-entry)
 theorems=(Borsuk.coverage Borsuk.decode_encode Borsuk.encode_decode Borsuk.encode_typed
   Borsuk.encode_total)
 harnesses=(codec_round_trip_scalars codec_round_trip_composite codec_canonical)

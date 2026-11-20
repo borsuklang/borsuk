@@ -1,0 +1,3 @@
+(program
+  (fn cents ((n Int)) (Decimal 2) (uses)
+    (block (value (round (Decimal 2) half_even n)))))

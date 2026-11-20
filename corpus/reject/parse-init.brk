@@ -1,0 +1,2 @@
+(program
+  (record Point (x Int) (y Int (init 0)) (z Int)))

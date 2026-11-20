@@ -1,0 +1,1 @@
+error[recursive-type]: type `Chain` contains itself

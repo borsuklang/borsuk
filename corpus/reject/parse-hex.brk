@@ -1,0 +1,2 @@
+(program
+  (decode odd Int "010" (invalid)))

@@ -1,0 +1,2 @@
+(program
+  (record Account (id Int) (owner Principal (init alice))))

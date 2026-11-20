@@ -1,0 +1,3 @@
+(program
+  (fn grow ((a (Decimal 20)) (b (Decimal 18))) Bool (uses)
+    (block (value (== (* a b) (* a b))))))

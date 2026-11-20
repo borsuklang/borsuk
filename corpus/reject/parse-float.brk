@@ -1,0 +1,3 @@
+(program
+  (fn tenth () F64 (uses)
+    (block (value (f64 0.10)))))

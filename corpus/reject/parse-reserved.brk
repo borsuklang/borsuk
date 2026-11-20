@@ -1,0 +1,3 @@
+(program
+  (fn log ((n Int)) Int (uses)
+    (block (value n))))
