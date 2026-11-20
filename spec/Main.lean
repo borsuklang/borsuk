@@ -2,30 +2,6 @@ import Borsuk
 
 open Borsuk
 
-mutual
-  def xvalue (inst : Option (Name × Value)) : XExpr → Option Value
-    | .int n => some (.int n)
-    | .text s => some (.text s)
-    | .bool b => some (.bool b)
-    | .unit => some .unit
-    | .dur n => some (.dur n)
-    | .var a => some (.principal a)
-    | .new ctor args => (xvalues inst args).map (.con ctor)
-    | .some x => (xvalue inst x).map .some
-    | .none => some .none
-    | .ok x => (xvalue inst x).map .ok
-    | .err x => (xvalue inst x).map .err
-    | .step n => inst.map fun (m, k) => .stepId m k life n
-    | .ticket n => inst.map fun (m, k) => .ticket m k life n 0
-
-  def xvalues (inst : Option (Name × Value)) : List XExpr → Option (List Value)
-    | [] => some []
-    | x :: xs => do
-      let v ← xvalue inst x
-      let vs ← xvalues inst xs
-      some (v :: vs)
-end
-
 def faultIs (kind : Name) : Option Reply → Bool
   | some (.fault f) => f.text == kind
   | _ => false
@@ -75,11 +51,28 @@ def runExample (p : Program) (ex : Example) : IO Bool := do
     IO.println s!"fail {ex.name}: line 1"
     pure false
 
+def decodeHolds (p : Program) (t : Ty) (frame : List UInt8) : Option XExpr → Bool
+  | some x =>
+    match xvalue none x with
+    | some v => decode p t frame == some v && (!full p t frame || encode p t v == some frame)
+    | none => false
+  | none => (decode p t frame).isNone
+
+def runDecode (p : Program) (name : Name) (t : Ty) (frame : List UInt8) (expect : Option XExpr) :
+    IO Bool := do
+  let ok := decodeHolds p t frame expect
+  IO.println s!"{if ok then "pass" else "fail"} {name}"
+  pure ok
+
+def runItem (p : Program) : Item → IO Bool
+  | .«example» ex => runExample p ex
+  | .decode name t frame expect => runDecode p name t frame expect
+  | _ => pure true
+
 def test (p : Program) : IO UInt32 := do
   let mut ok := true
   for it in p.items do
-    if let .«example» ex := it then
-      if !(← runExample p ex) then ok := false
+    if !(← runItem p it) then ok := false
   pure (if ok then 0 else 1)
 
 def firstDeployment (p : Program) : Option Deployment :=

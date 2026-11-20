@@ -1,5 +1,7 @@
 import Borsuk.Check
 import Borsuk.Runtime
+import Borsuk.Float
+import Borsuk.Decimal
 
 namespace Borsuk
 
@@ -30,6 +32,9 @@ mutual
     | .none => "(none)"
     | .ok v => form ["ok", showValue v]
     | .err v => form ["err", showValue v]
+    | .f64 b => form ["f64", floatText .b64 b.toNat]
+    | .f32 b => form ["f32", floatText .b32 b.toNat]
+    | .dec s c => form ["dec", decText s c]
 
   def showValues : List Value → List String
     | [] => []

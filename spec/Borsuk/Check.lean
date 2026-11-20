@@ -18,6 +18,8 @@ inductive Code where
   | missingCell
   | rejectNotDeclared
   | badEntry
+  | recursiveType
+  | layoutLimit
   deriving BEq
 
 def Code.rank : Code → Nat
@@ -25,17 +27,19 @@ def Code.rank : Code → Nat
   | .unknownName => 1
   | .duplicateName => 2
   | .recursion => 3
-  | .wrongEnding => 4
-  | .typeMismatch => 5
-  | .matchArms => 6
-  | .effectPosition => 7
-  | .effectNotDeclared => 8
-  | .envPosition => 9
-  | .initHasFields => 10
-  | .duplicateCell => 11
-  | .missingCell => 12
-  | .rejectNotDeclared => 13
-  | .badEntry => 14
+  | .recursiveType => 4
+  | .layoutLimit => 5
+  | .wrongEnding => 6
+  | .typeMismatch => 7
+  | .matchArms => 8
+  | .effectPosition => 9
+  | .effectNotDeclared => 10
+  | .envPosition => 11
+  | .initHasFields => 12
+  | .duplicateCell => 13
+  | .missingCell => 14
+  | .rejectNotDeclared => 15
+  | .badEntry => 16
 
 def Code.text : Code → String
   | .parse => "parse"
@@ -53,6 +57,8 @@ def Code.text : Code → String
   | .missingCell => "missing-cell"
   | .rejectNotDeclared => "reject-not-declared"
   | .badEntry => "bad-entry"
+  | .recursiveType => "recursive-type"
+  | .layoutLimit => "layout-limit"
 
 structure Diag where
   code : Code
@@ -73,7 +79,7 @@ def EnvField.text : EnvField → String
 
 def findRecord (p : Program) (name : Name) : Option (List Param) :=
   p.items.findSome? fun
-    | .record r fields => if r == name then some fields else none
+    | .record r fields inits => if r == name then some (fields ++ inits.map (·.1)) else none
     | _ => none
 
 def findEnum (p : Program) (name : Name) : Option (List Variant) :=
@@ -94,14 +100,15 @@ def isRole (p : Program) (name : Name) : Bool :=
 def isTypeName (p : Program) (name : Name) : Bool :=
   p.items.any fun
     | .newtype n _ => n == name
-    | .record r _ => r == name
+    | .record r _ _ => r == name
     | .enum e _ => e == name
     | _ => false
 
 def findCtor (p : Program) (name : Name) : Option (Ty × List Ty) :=
   p.items.findSome? fun
     | .newtype n t => if n == name then some (.named n, [t]) else none
-    | .record r fields => if r == name then some (.named r, fields.map (·.ty)) else none
+    | .record r fields inits =>
+      if r == name then some (.named r, (fields ++ inits.map (·.1)).map (·.ty)) else none
     | .enum e variants => (variants.find? (·.name == name)).map fun v => (.named e, v.fields)
     | _ => none
 
@@ -131,6 +138,8 @@ def isOp (p : Program) : Expr → Bool
 
 mutual
   def hasOp (p : Program) : Expr → Bool
+    | .int _ | .text _ | .bool _ | .unit | .dur _ | .var _ | .env _ | .none => false
+    | .f64 _ | .f32 _ | .dec _ _ => false
     | .call f args => usesConsole p f || hasOpAny p args
     | .new _ args => hasOpAny p args
     | .get e _ => hasOp p e
@@ -143,7 +152,13 @@ mutual
     | .lt a b => hasOp p a || hasOp p b
     | .and a b => hasOp p a || hasOp p b
     | .op _ _ => true
-    | _ => false
+    | .div a b => hasOp p a || hasOp p b
+    | .sqrt a => hasOp p a
+    | .fma a b c => hasOp p a || hasOp p b || hasOp p c
+    | .fn1 _ a => hasOp p a
+    | .fn2 _ a b => hasOp p a || hasOp p b
+    | .round _ _ a => hasOp p a
+    | .divMode _ _ a b => hasOp p a || hasOp p b
 
   def hasOpAny (p : Program) : List Expr → Bool
     | [] => false
@@ -313,6 +328,61 @@ def recursionCheck (p : Program) (ctx : Ctx) (callee : Name) : W Unit :=
     else pure ()
   | _, _ => pure ()
 
+def Ty.isFloat : Ty → Bool
+  | .f64 | .f32 => true
+  | _ => false
+
+def Ty.isOrdered : Ty → Bool
+  | .int | .time | .duration | .f64 | .f32 | .decimal _ => true
+  | _ => false
+
+def sameType (ok : Ty → Bool) : List Ty → Option Ty
+  | t :: ts => if ok t && ts.all (· == t) then some t else none
+  | [] => none
+
+def arithType : Arith → List Ty → Option Ty
+  | .mul, [.decimal a, .decimal b] => if a + b ≤ 37 then some (.decimal (a + b)) else none
+  | .mul, ts => sameType (fun t => t == .int || t.isFloat) ts
+  | _, ts => sameType (fun t => t == .int || t.isFloat || t matches .decimal _) ts
+
+def lessType (ts : List Ty) : Option Ty :=
+  (sameType Ty.isOrdered ts).map fun _ => .bool
+
+def roundLegal (target source : Ty) : Bool :=
+  match target, source with
+  | .decimal s, .decimal a => s != a
+  | .decimal _, .int => true
+  | .int, .decimal _ => true
+  | _, _ => false
+
+def keepsDigits (target source : Ty) : Bool :=
+  match target, source with
+  | .decimal s, .decimal a => a < s
+  | .decimal _, .int => true
+  | .int, .decimal a => a == 0
+  | _, _ => false
+
+def roundType (target : Ty) (mode : Mode) : List Ty → Option Ty
+  | [source] =>
+    if roundLegal target source && (mode == .exact || !keepsDigits target source) then some target
+    else none
+  | _ => none
+
+def divType (target : Ty) : List Ty → Option Ty
+  | [.decimal _, .decimal _] => if target matches .decimal _ then some target else none
+  | _ => none
+
+def formResult (ctx : Ctx) (want : Option Ty) (operands : List (Option Ty))
+    (rule : List Ty → Option Ty) : W (Option Ty) :=
+  match operands.mapM id with
+  | none => pure none
+  | some ts =>
+    match rule ts with
+    | some t => fits ctx want (some t)
+    | none => do
+      mismatch ctx
+      pure none
+
 def walkType (p : Program) : Ty → W Unit
   | .named n => if isTypeName p n then pure () else unknown n
   | .option t => walkType p t
@@ -409,25 +479,18 @@ mutual
         mismatch ctx
         let _ ← walkExpr p ctx false none inner
         pure none
-    | .arith _ a b => do
-      let _ ← walkExpr p ctx false (some .int) a
-      let _ ← walkExpr p ctx false (some .int) b
-      fits ctx want (some .int)
+    | .arith op a b => do
+      let ta ← walkExpr p ctx false none a
+      let tb ← walkExpr p ctx false none b
+      formResult ctx want [ta, tb] (arithType op)
     | .eq a b => do
       let t ← walkExpr p ctx false none a
       let _ ← walkExpr p ctx false t b
       fits ctx want (some .bool)
     | .lt a b => do
-      let t ← walkExpr p ctx false none a
-      match t with
-      | some .int | some .time | some .duration =>
-        let _ ← walkExpr p ctx false t b
-      | some _ => do
-        mismatch ctx
-        let _ ← walkExpr p ctx false none b
-      | none =>
-        let _ ← walkExpr p ctx false none b
-      fits ctx want (some .bool)
+      let ta ← walkExpr p ctx false none a
+      let tb ← walkExpr p ctx false none b
+      formResult ctx want [ta, tb] lessType
     | .and a b => do
       let _ ← walkExpr p ctx false (some .bool) a
       let _ ← walkExpr p ctx false (some .bool) b
@@ -439,6 +502,37 @@ mutual
       opCheck ctx allowOp o.effect
       let _ ← walkExpr p ctx false (some o.arg) arg
       fits ctx want (some o.result)
+    | .f64 _ => fits ctx want (some .f64)
+    | .f32 _ => fits ctx want (some .f32)
+    | .dec s _ => fits ctx want (some (.decimal s))
+    | .div a b => do
+      let ta ← walkExpr p ctx false none a
+      let tb ← walkExpr p ctx false none b
+      formResult ctx want [ta, tb] (sameType Ty.isFloat)
+    | .sqrt a => do
+      let ta ← walkExpr p ctx false none a
+      formResult ctx want [ta] (sameType Ty.isFloat)
+    | .fma a b c => do
+      let ta ← walkExpr p ctx false none a
+      let tb ← walkExpr p ctx false none b
+      let tc ← walkExpr p ctx false none c
+      formResult ctx want [ta, tb, tc] (sameType Ty.isFloat)
+    | .fn1 _ a => do
+      let ta ← walkExpr p ctx false none a
+      formResult ctx want [ta] (sameType Ty.isFloat)
+    | .fn2 _ a b => do
+      let ta ← walkExpr p ctx false none a
+      let tb ← walkExpr p ctx false none b
+      formResult ctx want [ta, tb] (sameType Ty.isFloat)
+    | .round t mode a => do
+      walkType p t
+      let ta ← walkExpr p ctx false none a
+      formResult ctx want [ta] (roundType t mode)
+    | .divMode t _ a b => do
+      walkType p t
+      let ta ← walkExpr p ctx false none a
+      let tb ← walkExpr p ctx false none b
+      formResult ctx want [ta, tb] (divType t)
 
   def walkArgs (p : Program) (ctx : Ctx) : List Expr → List Ty → W Unit
     | [], _ => pure ()
@@ -586,13 +680,6 @@ def walkFields (p : Program) (ctx : Ctx) : List Param → W Ctx
     walkType p f.ty
     walkFields p ctx fs
 
-def walkRecordFields (p : Program) : List Name → List Param → W Unit
-  | _, [] => pure ()
-  | seen, f :: fs => do
-    if seen.contains f.name then duplicate f.name
-    walkType p f.ty
-    walkRecordFields p (f.name :: seen) fs
-
 def bindParams (ctx : Ctx) : List Param → W Ctx
   | [] => pure ctx
   | x :: xs => do
@@ -647,6 +734,13 @@ def walkMachine (p : Program) (m : Machine) : W Unit := do
     declare g.name
     g.members.forM fun x => if (findState m x).isSome then pure () else unknown x
   m.ins.forM (walkIn p m)
+
+def machineKey (p : Program) (m : Name) : W (Option Ty) :=
+  match findMachine p m with
+  | some mach => pure (some mach.key)
+  | none => do
+    unknown m
+    pure none
 
 mutual
   def walkXExpr (p : Program) (ctx : Ctx) (want : Option Ty) : XExpr → W (Option Ty)
@@ -708,6 +802,19 @@ mutual
         mismatch ctx
         let _ ← walkXExpr p ctx none inner
         pure none
+    | .f64 _ => fits ctx want (some .f64)
+    | .f32 _ => fits ctx want (some .f32)
+    | .dec s _ => fits ctx want (some (.decimal s))
+    | .time _ => fits ctx want (some .time)
+    | .principal _ => fits ctx want (some .principal)
+    | .stepOf m k _ _ => do
+      let key ← machineKey p m
+      let _ ← walkXExpr p ctx key k
+      fits ctx want (some .stepId)
+    | .ticketOf m k _ _ _ => do
+      let key ← machineKey p m
+      let _ ← walkXExpr p ctx key k
+      fits ctx want (some .ticket)
 
   def walkXArgs (p : Program) (ctx : Ctx) : List XExpr → List Ty → W Unit
     | [], _ => pure ()
@@ -727,12 +834,30 @@ mutual
     | .some x => refersToInstance x
     | .ok x => refersToInstance x
     | .err x => refersToInstance x
-    | _ => false
+    | .stepOf _ k _ _ => refersToInstance k
+    | .ticketOf _ k _ _ _ => refersToInstance k
+    | .int _ | .text _ | .bool _ | .unit | .dur _ | .var _ | .none => false
+    | .f64 _ | .f32 _ | .dec _ _ | .time _ | .principal _ => false
 
   def anyRefersToInstance : List XExpr → Bool
     | [] => false
     | x :: xs => refersToInstance x || anyRefersToInstance xs
 end
+
+def walkConstant (p : Program) (ctx : Ctx) (want : Option Ty) (x : XExpr) : W Unit := do
+  let _ ← walkXExpr p ctx want x
+  if refersToInstance x then mismatch ctx
+
+def walkRecordFields (p : Program) (ctx : Ctx) :
+    List Name → List (Param × Option XExpr) → W Unit
+  | _, [] => pure ()
+  | seen, (f, init) :: fs => do
+    if seen.contains f.name then duplicate f.name
+    walkType p f.ty
+    match init with
+    | some x => walkConstant p ctx (some f.ty) x
+    | none => pure ()
+    walkRecordFields p ctx (f.name :: seen) fs
 
 def walkFact (p : Program) (ctx : Ctx) (site : Site) : Fact → W Unit
   | .outcome x => do
@@ -799,8 +924,7 @@ def walkExample (p : Program) (ex : Example) : W Unit := do
   let m := findMachine p ex.machine
   if m.isNone then unknown ex.machine
   let ctx := { baseCtx ex.name with machine := m }
-  let _ ← walkXExpr p ctx (m.map (·.key)) ex.key
-  if refersToInstance ex.key then mismatch ctx
+  walkConstant p ctx (m.map (·.key)) ex.key
   let ctx ← walkActors p ctx ex.actors
   ex.lines.forM (walkLine p ctx)
 
@@ -819,9 +943,9 @@ def walkItem (p : Program) (index : Nat) : Item → W Unit
   | .newtype n t => do
     declare n
     walkType p t
-  | .record r fields => do
+  | .record r fields inits => do
     declare r
-    walkRecordFields p [] fields
+    walkRecordFields p (baseCtx r) [] (fields.map (·, none) ++ inits.map fun (f, x) => (f, some x))
   | .enum e variants => do
     declare e
     variants.forM fun v => do
@@ -835,6 +959,12 @@ def walkItem (p : Program) (index : Nat) : Item → W Unit
   | .machine m => walkMachine p m
   | .deployment d => walkDeployment p d
   | .«example» ex => walkExample p ex
+  | .decode n t _ expect => do
+    declare n
+    walkType p t
+    match expect with
+    | some x => walkConstant p (baseCtx n) (some t) x
+    | none => pure ()
 
 def walkItems (p : Program) : Nat → List Item → W Unit
   | _, [] => pure ()
@@ -863,8 +993,119 @@ def cellDiags (p : Program) : Item → List Diag
       { code := .missingCell, message := s!"machine {tick m.name} has no cell for ({s}, {i})" })
   | _ => []
 
+inductive Node where
+  | named (name : Name)
+  | stepId
+  | ticket
+  deriving BEq
+
+def Node.text : Node → String
+  | .named n => n
+  | .stepId => "StepId"
+  | .ticket => "Ticket"
+
+def tyNodes : Ty → List Node
+  | .named n => [.named n]
+  | .option t => tyNodes t
+  | .result a b => tyNodes a ++ tyNodes b
+  | .stepId => [.stepId]
+  | .ticket => [.ticket]
+  | _ => []
+
+def itemNodes (p : Program) (n : Name) : List Node :=
+  p.items.flatMap fun
+    | .record r fields inits =>
+      if r == n then (fields ++ inits.map (·.1)).flatMap fun f => tyNodes f.ty else []
+    | .enum e variants => if e == n then variants.flatMap fun v => v.fields.flatMap tyNodes else []
+    | .newtype m t => if m == n then tyNodes t else []
+    | _ => []
+
+def keyNodes (p : Program) : List Node :=
+  p.items.flatMap fun
+    | .machine m => tyNodes m.key
+    | _ => []
+
+def edges (p : Program) : Node → List Node
+  | .named n => itemNodes p n
+  | .stepId => keyNodes p
+  | .ticket => keyNodes p
+
+def typeNames (p : Program) : List Name :=
+  p.items.filterMap fun
+    | .record r _ _ => some r
+    | .enum e _ => some e
+    | .newtype n _ => some n
+    | _ => none
+
+def nodeCount (p : Program) : Nat :=
+  (typeNames p).length + 2
+
+def addNew (seen : List Node) : List Node → List Node
+  | [] => []
+  | x :: xs => if seen.contains x then addNew seen xs else x :: addNew (x :: seen) xs
+
+def reach (p : Program) : Nat → List Node → List Node → List Node
+  | 0, seen, _ => seen
+  | k + 1, seen, frontier =>
+    match addNew seen (frontier.flatMap (edges p)) with
+    | [] => seen
+    | next => reach p k (seen ++ next) next
+
+def reachFrom (p : Program) (start : List Node) : List Node :=
+  let first := addNew [] start
+  reach p (nodeCount p) first first
+
+def reachesSelf (p : Program) (n : Node) : Bool :=
+  (reachFrom p (edges p n)).contains n
+
+def reachesSpecial (p : Program) (start : List Node) : Bool :=
+  let ns := reachFrom p start
+  ns.contains .stepId || ns.contains .ticket
+
+def firstSpecial (p : Program) : Nat → Ty → Option Node
+  | _, .stepId => some .stepId
+  | _, .ticket => some .ticket
+  | k, .option t => firstSpecial p k t
+  | k, .result a b => (firstSpecial p k a).orElse fun _ => firstSpecial p k b
+  | 0, .named _ => none
+  | k + 1, .named n =>
+    if reachesSpecial p (edges p (.named n)) then
+      p.items.findSome? fun
+        | .record r fields inits =>
+          if r == n then (fields ++ inits.map (·.1)).findSome? fun f => firstSpecial p k f.ty else none
+        | .enum e variants =>
+          if e == n then variants.findSome? fun v => v.fields.findSome? (firstSpecial p k) else none
+        | .newtype m t => if m == n then firstSpecial p k t else none
+        | _ => none
+    else none
+  | _, _ => none
+
+def recursiveTypeDiags (p : Program) : List Diag :=
+  let message (n : Node) : Diag :=
+    { code := .recursiveType, message := s!"type {tick n.text} contains itself" }
+  match (typeNames p).find? fun n => reachesSelf p (.named n) with
+  | some n => [message (.named n)]
+  | none =>
+    let keyLoop := p.items.findSome? fun
+      | .machine m =>
+        if reachesSpecial p (tyNodes m.key) then firstSpecial p (nodeCount p) m.key
+        else none
+      | _ => none
+    match keyLoop with
+    | some n => [message n]
+    | none => []
+
+def layoutDiag (t : Name) : Diag :=
+  { code := .layoutLimit, message := s!"type {tick t} exceeds the layout limits" }
+
+def layoutDiags : Item → List Diag
+  | .record r fields inits => if fields.length + inits.length > 65535 then [layoutDiag r] else []
+  | .enum e variants => if variants.length > 256 then [layoutDiag e] else []
+  | _ => []
+
 def diagnose (p : Program) : List Diag :=
-  walkProgram p ++ p.items.flatMap (cellDiags p)
+  walkProgram p ++ p.items.flatMap layoutDiags ++ recursiveTypeDiags p ++
+    p.items.flatMap (cellDiags p)
 
 def select (ds : List Diag) : List Diag :=
   let best := ds.foldl (fun r d => min r d.code.rank) Code.badEntry.rank

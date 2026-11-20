@@ -12,6 +12,9 @@ inductive Ty where
   | principal
   | stepId
   | ticket
+  | f64
+  | f32
+  | decimal (scale : Nat)
   | option (inner : Ty)
   | result (ok err : Ty)
   | named (name : Name)
@@ -33,6 +36,39 @@ inductive Arith where
   | add
   | sub
   | mul
+
+inductive Fn1 where
+  | exp
+  | exp2
+  | log
+  | log2
+  | log10
+  | sin
+  | cos
+  | tan
+  | asin
+  | acos
+  | atan
+  | sinh
+  | cosh
+  | tanh
+  | cbrt
+
+inductive Fn2 where
+  | pow
+  | atan2
+  | hypot
+
+inductive Mode where
+  | up
+  | down
+  | ceiling
+  | floor
+  | halfUp
+  | halfDown
+  | halfEven
+  | exact
+  deriving BEq
 
 inductive Op where
   | print
@@ -60,6 +96,16 @@ inductive Expr where
   | and (left right : Expr)
   | not (inner : Expr)
   | op (op : Op) (arg : Expr)
+  | f64 (bits : UInt64)
+  | f32 (bits : UInt32)
+  | dec (scale : Nat) (coeff : Int)
+  | div (left right : Expr)
+  | sqrt (arg : Expr)
+  | fma (a b c : Expr)
+  | fn1 (fn : Fn1) (arg : Expr)
+  | fn2 (fn : Fn2) (a b : Expr)
+  | round (ty : Ty) (mode : Mode) (arg : Expr)
+  | divMode (ty : Ty) (mode : Mode) (a b : Expr)
 
 inductive Bind where
   | wild
@@ -166,6 +212,13 @@ inductive XExpr where
   | err (inner : XExpr)
   | step (seq : Int)
   | ticket (seq : Int)
+  | f64 (bits : UInt64)
+  | f32 (bits : UInt32)
+  | dec (scale : Nat) (coeff : Int)
+  | time (nanos : Int)
+  | principal (name : String)
+  | stepOf (machine : Name) (key : XExpr) (life seq : Int)
+  | ticketOf (machine : Name) (key : XExpr) (life seq idx : Int)
 
 inductive Fact where
   | outcome (value : XExpr)
@@ -193,7 +246,7 @@ structure Example where
 
 inductive Item where
   | newtype (name : Name) (ty : Ty)
-  | record (name : Name) (fields : List Param)
+  | record (name : Name) (fields : List Param) (inits : List (Param × XExpr))
   | enum (name : Name) (variants : List Variant)
   | role (name : Name)
   | fn (fn : Fn)
@@ -201,9 +254,25 @@ inductive Item where
   | machine (machine : Machine)
   | deployment (deployment : Deployment)
   | «example» (ex : Example)
+  | decode (name : Name) (ty : Ty) (frame : List UInt8) (expect : Option XExpr)
 
 structure Program where
   items : List Item
+
+inductive Fault where
+  | overflow
+  | impossible
+  | inexact
+  | divZero
+  | undecided
+  deriving BEq
+
+def Fault.text : Fault → String
+  | .overflow => "overflow"
+  | .impossible => "impossible"
+  | .inexact => "inexact"
+  | .divZero => "div_zero"
+  | .undecided => "undecided"
 
 def firedName : Name := "Fired"
 

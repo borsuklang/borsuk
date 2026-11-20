@@ -1,4 +1,6 @@
 import Borsuk.Ir
+import Borsuk.Float
+import Borsuk.Decimal
 
 namespace Borsuk
 
@@ -83,6 +85,18 @@ def parseInt (s : String) : Option Int :=
       | cs => (natural cs).map fun v => (v : Int)
   n.bind fun v => if inRange v then some v else none
 
+def fn1Names : List (String × Fn1) :=
+  [("exp", .exp), ("exp2", .exp2), ("log", .log), ("log2", .log2), ("log10", .log10),
+   ("sin", .sin), ("cos", .cos), ("tan", .tan), ("asin", .asin), ("acos", .acos),
+   ("atan", .atan), ("sinh", .sinh), ("cosh", .cosh), ("tanh", .tanh), ("cbrt", .cbrt)]
+
+def fn2Names : List (String × Fn2) :=
+  [("pow", .pow), ("atan2", .atan2), ("hypot", .hypot)]
+
+def modeNames : List (String × Mode) :=
+  [("up", .up), ("down", .down), ("ceiling", .ceiling), ("floor", .floor),
+   ("half_up", .halfUp), ("half_down", .halfDown), ("half_even", .halfEven), ("exact", .exact)]
+
 def reserved : List String :=
   ["program", "newtype", "record", "enum", "role", "fn", "uses", "block", "protocol", "machine",
    "key", "init", "state", "group", "in", "on", "deployment", "platform", "entry", "example",
@@ -90,8 +104,10 @@ def reserved : List String :=
    "reject", "answer", "ignore", "impossible", "match", "arm", "unit", "dur", "env", "call",
    "new", "get", "some", "none", "ok", "err", "and", "not", "actor", "send", "fire", "expect",
    "refused", "fault", "ignored", "step", "ticket",
+   "decode", "invalid", "f64", "f32", "dec", "sqrt", "fma", "round", "div", "time", "principal",
    "Unit", "Bool", "Int", "Text", "Time", "Duration", "Principal", "StepId", "Ticket",
-   "Option", "Result", "true", "false", "Fired", "ConsoleOut", "Timer"]
+   "Option", "Result", "true", "false", "Fired", "ConsoleOut", "Timer",
+   "F64", "F32", "Decimal"] ++ fn1Names.map (·.1) ++ fn2Names.map (·.1)
 
 abbrev Reader := StateT (List Token) Option
 
@@ -143,6 +159,40 @@ def int : Reader Int := do
   let some n := parseInt (← atom) | failure
   pure n
 
+def decimalScale : Reader Nat := do
+  let s ← int
+  if 0 ≤ s && s ≤ 37 then pure s.toNat else failure
+
+def floatAtom (f : Fmt) : Reader Nat := do
+  let some bits := floatParse f (← atom) | failure
+  pure bits
+
+def decimalAtom : Reader (Nat × Int) := do
+  let some d := decParse (← atom) | failure
+  pure d
+
+def modeAtom : Reader Mode := do
+  let some m := modeNames.lookup (← atom) | failure
+  pure m
+
+def textToken : Reader String := do
+  let .text s ← token | failure
+  pure s
+
+def hexDigit (c : Char) : Option Nat :=
+  if isDigit c then some (c.toNat - '0'.toNat)
+  else if 'a' ≤ c && c ≤ 'f' then some (c.toNat - 'a'.toNat + 10)
+  else none
+
+def hexBytes : List Char → Option (List UInt8)
+  | [] => some []
+  | [_] => none
+  | hi :: lo :: rest => do
+    let h ← hexDigit hi
+    let l ← hexDigit lo
+    let bs ← hexBytes rest
+    pure (UInt8.ofNat (16 * h + l) :: bs)
+
 partial def untilClose {α : Type} (item : Reader α) : Reader (List α) := do
   if ← peekClose then pure []
   else
@@ -172,6 +222,8 @@ partial def ty : Reader Ty := do
   | .atom "Principal" => pure .principal
   | .atom "StepId" => pure .stepId
   | .atom "Ticket" => pure .ticket
+  | .atom "F64" => pure .f64
+  | .atom "F32" => pure .f32
   | .atom s => if isIdent s then pure (.named s) else failure
   | .lp =>
     match ← atom with
@@ -184,6 +236,10 @@ partial def ty : Reader Ty := do
       let err ← ty
       closeParen
       pure (.result ok err)
+    | "Decimal" =>
+      let s ← decimalScale
+      closeParen
+      pure (.decimal s)
     | _ => failure
   | _ => failure
 
@@ -230,7 +286,21 @@ partial def expr : Reader Expr := do
       | "ConsoleOut.print" => pure (.op .print (← expr))
       | "Timer.after" => pure (.op .after (← expr))
       | "Timer.cancel" => pure (.op .cancel (← expr))
-      | _ => failure
+      | "f64" => pure (.f64 (UInt64.ofNat (← floatAtom .b64)))
+      | "f32" => pure (.f32 (UInt32.ofNat (← floatAtom .b32)))
+      | "dec" => do
+        let (s, c) ← decimalAtom
+        pure (.dec s c)
+      | "/" => pure (.div (← expr) (← expr))
+      | "sqrt" => pure (.sqrt (← expr))
+      | "fma" => pure (.fma (← expr) (← expr) (← expr))
+      | "round" => pure (.round (← ty) (← modeAtom) (← expr))
+      | "div" => pure (.divMode (← ty) (← modeAtom) (← expr) (← expr))
+      | h =>
+        match fn1Names.lookup h, fn2Names.lookup h with
+        | some f, _ => pure (.fn1 f (← expr))
+        | none, some f => pure (.fn2 f (← expr) (← expr))
+        | none, none => failure
     closeParen
     pure e
   | .rp => failure
@@ -341,13 +411,6 @@ end
 def param : Reader Param := do
   openParen
   let x ← localName
-  let t ← ty
-  closeParen
-  pure { name := x, ty := t }
-
-def field : Reader Param := do
-  openParen
-  let x ← ident
   let t ← ty
   closeParen
   pure { name := x, ty := t }
@@ -473,7 +536,7 @@ def deployment : Reader Deployment := do
   closeParen
   pure { name := n, platform := .cli, entry := e }
 
-partial def xexpr : Reader XExpr := do
+partial def xexpr (stored : Bool) : Reader XExpr := do
   match ← token with
   | .text s => pure (.text s)
   | .atom s =>
@@ -488,13 +551,32 @@ partial def xexpr : Reader XExpr := do
     let x ← match ← atom with
       | "unit" => pure .unit
       | "dur" => pure (.dur (← int))
-      | "new" => pure (.new (← ident) (← untilClose xexpr))
-      | "some" => pure (.some (← xexpr))
+      | "new" => pure (.new (← ident) (← untilClose (xexpr stored)))
+      | "some" => pure (.some (← xexpr stored))
       | "none" => pure .none
-      | "ok" => pure (.ok (← xexpr))
-      | "err" => pure (.err (← xexpr))
-      | "step" => pure (.step (← int))
-      | "ticket" => pure (.ticket (← int))
+      | "ok" => pure (.ok (← xexpr stored))
+      | "err" => pure (.err (← xexpr stored))
+      | "f64" => pure (.f64 (UInt64.ofNat (← floatAtom .b64)))
+      | "f32" => pure (.f32 (UInt32.ofNat (← floatAtom .b32)))
+      | "dec" => do
+        let (s, c) ← decimalAtom
+        pure (.dec s c)
+      | "step" => do
+        let a ← atom
+        match parseInt a with
+        | some n => pure (.step n)
+        | none =>
+          if stored && isIdent a then pure (.stepOf a (← xexpr stored) (← int) (← int))
+          else failure
+      | "ticket" => do
+        let a ← atom
+        match parseInt a with
+        | some n => pure (.ticket n)
+        | none =>
+          if stored && isIdent a then pure (.ticketOf a (← xexpr stored) (← int) (← int) (← int))
+          else failure
+      | "time" => if stored then pure (.time (← int)) else failure
+      | "principal" => if stored then pure (.principal (← textToken)) else failure
       | _ => failure
     closeParen
     pure x
@@ -503,15 +585,15 @@ partial def xexpr : Reader XExpr := do
 def fact : Reader Fact := do
   openParen
   let f ← match ← atom with
-    | "outcome" => pure (.outcome (← xexpr))
+    | "outcome" => pure (.outcome (← xexpr false))
     | "reject" => pure (.reject (← ident))
-    | "answer" => pure (.answer (← xexpr))
+    | "answer" => pure (.answer (← xexpr false))
     | "refused" =>
       keyword "forbidden"
       pure .refused
     | "fault" => pure (.fault (← ident))
     | "ignored" => pure .ignored
-    | "state" => pure (.state (← ident) (← untilClose xexpr))
+    | "state" => pure (.state (← ident) (← untilClose (xexpr false)))
     | _ => failure
   closeParen
   pure f
@@ -525,7 +607,7 @@ def expect : Reader (List Fact) := do
 partial def sendArgs : Reader (List XExpr) := do
   if (← peekHead) == some "expect" then pure []
   else
-    let x ← xexpr
+    let x ← xexpr false
     let xs ← sendArgs
     pure (x :: xs)
 
@@ -539,7 +621,7 @@ def line : Reader Line := do
       let fs ← expect
       pure (.send a i args fs)
     | "fire" =>
-      let t ← xexpr
+      let t ← xexpr false
       let fs ← expect
       pure (.fire t fs)
     | _ => failure
@@ -553,13 +635,40 @@ def actor : Reader Actor := do
   closeParen
   pure { name := n, roles := rs }
 
+def field : Reader (Param × Option XExpr) := do
+  openParen
+  let x ← ident
+  let t ← ty
+  let init ← if ← peekClose then pure none
+    else
+      head "init"
+      let v ← xexpr true
+      closeParen
+      pure (some v)
+  closeParen
+  pure ({ name := x, ty := t }, init)
+
+def initFields : List (Param × Option XExpr) → Option (List (Param × XExpr))
+  | [] => some []
+  | (f, some x) :: rest => (initFields rest).map ((f, x) :: ·)
+  | (_, none) :: _ => none
+
+def expected : Reader (Option XExpr) := do
+  openParen
+  let x ← match ← atom with
+    | "value" => pure (some (← xexpr true))
+    | "invalid" => pure none
+    | _ => failure
+  closeParen
+  pure x
+
 def «example» : Reader Example := do
   let n ← declName
   head "machine"
   let m ← ident
   closeParen
   head "key"
-  let k ← xexpr
+  let k ← xexpr false
   closeParen
   let actors ← headed "actor" actor
   let lines ← some1 line
@@ -576,9 +685,12 @@ def item : Reader Item := do
     pure (.newtype n t)
   | "record" =>
     let n ← declName
-    let fs ← some1 field
+    let fs ← untilClose field
+    let plain := fs.takeWhile (·.2.isNone)
+    let some inits := initFields (fs.drop plain.length) | failure
+    if plain.isEmpty then failure
     closeParen
-    pure (.record n fs)
+    pure (.record n (plain.map (·.1)) inits)
   | "enum" =>
     let n ← declName
     let vs ← some1 variant
@@ -597,6 +709,13 @@ def item : Reader Item := do
   | "machine" => pure (.machine (← machine))
   | "deployment" => pure (.deployment (← deployment))
   | "example" => pure (.«example» (← «example»))
+  | "decode" =>
+    let n ← declName
+    let t ← ty
+    let some frame := hexBytes (← textToken).toList | failure
+    let x ← expected
+    closeParen
+    pure (.decode n t frame x)
   | _ => failure
 
 def program : Reader Program := do

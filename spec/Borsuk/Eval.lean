@@ -1,4 +1,7 @@
 import Borsuk.Ir
+import Borsuk.Float
+import Borsuk.Decimal
+import Borsuk.Math
 
 namespace Borsuk
 
@@ -17,16 +20,10 @@ inductive Value where
   | none
   | ok (inner : Value)
   | err (inner : Value)
+  | f64 (bits : UInt64)
+  | f32 (bits : UInt32)
+  | dec (scale : Nat) (coeff : Int)
   deriving BEq, Inhabited
-
-inductive Fault where
-  | overflow
-  | impossible
-  deriving BEq
-
-def Fault.text : Fault → String
-  | .overflow => "overflow"
-  | .impossible => "impossible"
 
 inductive Stop where
   | fault (kind : Fault)
@@ -76,10 +73,68 @@ def arith (op : Arith) (a b : Int) : Int :=
   | .sub => a - b
   | .mul => a * b
 
+def liftFault {α : Type} : Except Fault α → M α
+  | .ok a => pure a
+  | .error f => throw (.fault f)
+
+def floatResult : Fmt → Option Nat → M Value
+  | .b64, some n => pure (.f64 (UInt64.ofNat n))
+  | .b32, some n => pure (.f32 (UInt32.ofNat n))
+  | _, none => throw (.fault .undecided)
+
+def float1 (g : Fmt → Nat → Option Nat) : Value → M Value
+  | .f64 x => floatResult .b64 (g .b64 x.toNat)
+  | .f32 x => floatResult .b32 (g .b32 x.toNat)
+  | _ => stuck
+
+def float2 (g : Fmt → Nat → Nat → Option Nat) : Value → Value → M Value
+  | .f64 x, .f64 y => floatResult .b64 (g .b64 x.toNat y.toNat)
+  | .f32 x, .f32 y => floatResult .b32 (g .b32 x.toNat y.toNat)
+  | _, _ => stuck
+
+def float3 (g : Fmt → Nat → Nat → Nat → Option Nat) : Value → Value → Value → M Value
+  | .f64 x, .f64 y, .f64 z => floatResult .b64 (g .b64 x.toNat y.toNat z.toNat)
+  | .f32 x, .f32 y, .f32 z => floatResult .b32 (g .b32 x.toNat y.toNat z.toNat)
+  | _, _, _ => stuck
+
+def floatArith : Arith → Fmt → Nat → Nat → Nat
+  | .add => floatAdd
+  | .sub => floatSub
+  | .mul => floatMul
+
+def decArith : Arith → Nat → Int → Nat → Int → M Value
+  | .add, s, x, t, y => if s == t then (.dec s ·) <$> liftFault (decAdd x y) else stuck
+  | .sub, s, x, t, y => if s == t then (.dec s ·) <$> liftFault (decSub x y) else stuck
+  | .mul, s, x, t, y => (.dec (s + t) ·) <$> liftFault (decMul x y)
+
+def arithValue (op : Arith) : Value → Value → M Value
+  | .int x, .int y => checked (arith op x y)
+  | .dec s x, .dec t y => decArith op s x t y
+  | va, vb => float2 (fun f x y => some (floatArith op f x y)) va vb
+
+def decValue (t : Ty) (r : Except Fault Int) : M Value := do
+  let c ← liftFault r
+  match t with
+  | .int => pure (.int c)
+  | .decimal s => pure (.dec s c)
+  | _ => stuck
+
+def roundValue (t : Ty) (mode : Mode) : Value → M Value
+  | .int n => decValue t (decRound t mode 0 n)
+  | .dec s c => decValue t (decRound t mode s c)
+  | _ => stuck
+
+def divValue (t : Ty) (mode : Mode) : Value → Value → M Value
+  | .dec sa x, .dec sb y => decValue t (decDiv t mode sa x sb y)
+  | _, _ => stuck
+
 def less : Value → Value → Option Bool
   | .int a, .int b => some (a < b)
   | .time a, .time b => some (a < b)
   | .dur a, .dur b => some (a < b)
+  | .f64 a, .f64 b => some (floatLt .b64 a.toNat b.toNat)
+  | .f32 a, .f32 b => some (floatLt .b32 a.toNat b.toNat)
+  | .dec s a, .dec t b => if s == t then some (a < b) else none
   | _, _ => none
 
 def tickets (outs : Array Output) : Nat :=
@@ -107,7 +162,8 @@ def matchPat : Pat → Value → Option (List (Name × Value))
 
 def fieldIndex (p : Program) (record field : Name) : Option Nat :=
   p.items.findSome? fun
-    | .record r fields => if r == record then fields.findIdx? (·.name == field) else none
+    | .record r fields inits =>
+      if r == record then (fields ++ inits.map (·.1)).findIdx? (·.name == field) else none
     | _ => none
 
 def fuelOf (p : Program) : Nat :=
@@ -160,9 +216,7 @@ mutual
     | .arith op a b => do
       let va ← evalExpr p env call locals a
       let vb ← evalExpr p env call locals b
-      match va, vb with
-      | .int x, .int y => checked (arith op x y)
-      | _, _ => stuck
+      arithValue op va vb
     | .eq a b => do
       let va ← evalExpr p env call locals a
       let vb ← evalExpr p env call locals b
@@ -201,6 +255,35 @@ mutual
       let t ← evalExpr p env call locals arg
       modify (·.push (.cancel t))
       pure .unit
+    | .f64 b => pure (.f64 b)
+    | .f32 b => pure (.f32 b)
+    | .dec s c => pure (.dec s c)
+    | .div a b => do
+      let va ← evalExpr p env call locals a
+      let vb ← evalExpr p env call locals b
+      float2 (fun f x y => some (floatDiv f x y)) va vb
+    | .sqrt a => do
+      let va ← evalExpr p env call locals a
+      float1 (fun f x => some (floatSqrt f x)) va
+    | .fma a b c => do
+      let va ← evalExpr p env call locals a
+      let vb ← evalExpr p env call locals b
+      let vc ← evalExpr p env call locals c
+      float3 (fun f x y z => some (floatFma f x y z)) va vb vc
+    | .fn1 fn a => do
+      let va ← evalExpr p env call locals a
+      float1 (fun f x => math1 f fn x) va
+    | .fn2 fn a b => do
+      let va ← evalExpr p env call locals a
+      let vb ← evalExpr p env call locals b
+      float2 (fun f x y => math2 f fn x y) va vb
+    | .round t mode a => do
+      let va ← evalExpr p env call locals a
+      roundValue t mode va
+    | .divMode t mode a b => do
+      let va ← evalExpr p env call locals a
+      let vb ← evalExpr p env call locals b
+      divValue t mode va vb
 
   def evalArgs (p : Program) (env : Option Envelope) (call : Call) (locals : List (Name × Value)) :
       List Expr → M (List Value)

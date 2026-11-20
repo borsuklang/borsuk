@@ -100,4 +100,35 @@ def runEntry (p : Program) (f : Fn) : Option (Except Fault (List Output)) :=
   | .error (.fault fault) => some (.error fault)
   | .error .stuck => none
 
+mutual
+  def xvalue (inst : Option (Name × Value)) : XExpr → Option Value
+    | .int n => some (.int n)
+    | .text s => some (.text s)
+    | .bool b => some (.bool b)
+    | .unit => some .unit
+    | .dur n => some (.dur n)
+    | .var a => some (.principal a)
+    | .new ctor args => (xvalues inst args).map (.con ctor)
+    | .some x => (xvalue inst x).map .some
+    | .none => some .none
+    | .ok x => (xvalue inst x).map .ok
+    | .err x => (xvalue inst x).map .err
+    | .step n => inst.map fun (m, k) => .stepId m k life n
+    | .ticket n => inst.map fun (m, k) => .ticket m k life n 0
+    | .f64 b => some (.f64 b)
+    | .f32 b => some (.f32 b)
+    | .dec s c => some (.dec s c)
+    | .time n => some (.time n)
+    | .principal a => some (.principal a)
+    | .stepOf m k l s => (xvalue inst k).map fun v => .stepId m v l s
+    | .ticketOf m k l s i => (xvalue inst k).map fun v => .ticket m v l s i
+
+  def xvalues (inst : Option (Name × Value)) : List XExpr → Option (List Value)
+    | [] => some []
+    | x :: xs => do
+      let v ← xvalue inst x
+      let vs ← xvalues inst xs
+      some (v :: vs)
+end
+
 end Borsuk
