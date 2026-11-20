@@ -25,6 +25,7 @@ Status: planned.
 | Document | Content |
 |---|---|
 | [Plan](releases/v0.0.2/plan.md) | The contract of v0.0.2: the codec and the Q1 byte-layout experiment, `F64` and `F32` with 18 correctly rounded functions, `(Decimal S)`, the new static rules, the proofs, the corpus and `check.sh`. |
+| [Q1 byte layout](releases/v0.0.2/q1-byte-layout.md) | The report of the Q1 experiment: the bytes and the speed of the three arms, and the decision. The codec of v0.0.2 is arm F. |
 
 ### v0.0.1: core and interpreter
 
