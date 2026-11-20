@@ -1,6 +1,6 @@
 # Reviewer brief
 
-Fill each placeholder in braces, then give the text as the prompt of the reviewer. For round 4, replace the part "Classes" with the part "Blocking-only classes".
+Fill each placeholder in braces, then give the text as the prompt of the reviewer. For a blocking-only round, replace the part "Classes" with the part "Blocking-only classes".
 
 ---
 
@@ -28,6 +28,6 @@ Plan choices that you may challenge: {OPEN_PLAN_CHOICES}.
 
 Classes. Report each finding of these classes (definitions in `goal.md`, "Plan review"): NOT-PLANNED (most important), CONTRADICTION, GAP, WRONG-FACT, UNBUILDABLE, WEAK-CHECK, UNFAIR-EXPERIMENT, HISTORY, and GOAL for a defect in `goal.md`. For NOT-PLANNED, name the condition that fails (the milestone row, its exit gate, a design sentence, an owner decision, or "smallest means"), and give the smaller replacement or say "remove". The table of changes in plan section 1.1 is not history.
 
-Blocking-only classes (round 4 only). Report only UNBUILDABLE, CONTRADICTION and NOT-PLANNED. Do not report gaps, weak checks, unfair parts of an experiment, wording or risks. If you find no defect of these three classes, say exactly "NO BLOCKING FINDINGS".
+Blocking-only classes (a blocking-only round only). Report only UNBUILDABLE, CONTRADICTION and NOT-PLANNED. Do not report gaps, weak checks, unfair parts of an experiment, wording or risks. If you find no defect of these three classes, say exactly "NO BLOCKING FINDINGS".
 
 Report only real defects that an autonomous agent would hit, or that change an output, a byte, a check or a decision. For each finding, give the class, the file, the line or the section, the exact problem, and the concrete fix as replacement text. Rank the findings by severity. Do not report style or wording, unless the wording is ambiguous for an agent. Do not report a risk that you could not confirm as a finding: list it separately under "Unconfirmed". Say nothing about the parts that are correct. If you find no defect, say exactly "NO FINDINGS". End with a count per class.

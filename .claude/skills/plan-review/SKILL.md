@@ -34,7 +34,7 @@ This skill removes these causes before the first reviewer, and it limits the rou
 4. Ask the owner about all open choices before round 1. Use AskUserQuestion with at most 4 questions in each call, the recommended option first, and the facts in each question. Write each answer into the plan as a rule, with no date and no "the owner decided".
 5. Keep a decision ledger in the scratchpad: one numbered line for each owner decision. The ledger goes into each reviewer brief. It is not in the plan.
 
-### Rounds 1 to 3: full review
+### Rounds 1 to 7: full review
 
 For each round, start a new reviewer:
 
@@ -43,6 +43,8 @@ For each round, start a new reviewer:
 - Never reuse a reviewer. Give it the files and the ledger, not your conclusions.
 
 An xhigh round takes about 25 to 40 minutes. Wait for its notification, then triage.
+
+Run at most 7 full rounds. The full rounds end early when a full round reports no finding.
 
 ### Triage after each round
 
@@ -57,12 +59,13 @@ An xhigh round takes about 25 to 40 minutes. Wait for its notification, then tri
 5. Close each "unconfirmed" risk of the report that a short host check or a one-sentence rule can close.
 6. Report to the owner in ASD-STE100: the count per class, the main changes and the decisions that you need. Do not paste the reviewer report.
 
-### Round 4: blocking-only review
+### Then at most 3 blocking-only rounds
 
-Use the same brief with the blocking-only part of [reviewer-brief.md](reviewer-brief.md): only UNBUILDABLE, CONTRADICTION and NOT-PLANNED, and the answer "NO BLOCKING FINDINGS" when there is none.
+Use the same brief with the blocking-only part of [reviewer-brief.md](reviewer-brief.md): only UNBUILDABLE, CONTRADICTION and NOT-PLANNED, and the answer "NO BLOCKING FINDINGS" when there is none. Each blocking-only round has a new reviewer.
 
-- Apply each blocking finding.
-- Run one more blocking-only round only if a fix added a new rule or a new mechanism. A fix of one row or one sentence does not need a new round.
+- Apply each blocking finding, then start the next blocking-only round.
+- The review ends when a blocking-only round reports no blocking finding.
+- If the third blocking-only round still reports a blocking finding, apply it, then stop and ask the owner how to continue.
 
 ### Stop and commit
 
@@ -70,7 +73,7 @@ Ask the owner to approve the commit: a branch, one Conventional Commit (`docs: .
 
 ## Limits
 
-- At most 3 full rounds and the blocking-only rounds. More full rounds only when the owner asks.
+- At most 7 full rounds, then at most 3 blocking-only rounds. More rounds only when the owner asks.
 - A Fable usage limit stops a reviewer. Tell the owner the reset time. After the reset, resume the same reviewer with SendMessage. Do not use another model without the consent of the owner.
 - A reviewer runs no build, no benchmark and no heavy job. It can read files and run `--help` and other small read-only commands.
 
