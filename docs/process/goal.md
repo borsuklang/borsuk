@@ -34,7 +34,7 @@ Read each document completely before any work.
 | Rank | Source |
 |---|---|
 | 1 | The answers of the owner in the current session |
-| 2 | This goal. The plan of V can name exceptions to the host rules, to the freeze points and to the mirror rule. |
+| 2 | This goal. A plan in force can name exceptions to the host rules, to the freeze points and to the mirror rule. |
 | 3 | The plan of V |
 | 4 | The plans of the earlier releases |
 | 5 | The design |
@@ -138,6 +138,7 @@ Host:
 - Other jobs of the owner share this computer.
 - Run each heavy job (fuzz runs, comparisons, proof runs, large builds) under `nice -n 19 ionice -c3`.
 - Run at most two heavy processes at the same time. Keep each process below 2 GB. Bound the number of cases.
+- A plan in force can let one step use more memory. The step sets the cap with `MemoryMax` and `MemorySwapMax=0`. Only one process above 2 GB runs at a time.
 - Run `check.sh` as `CARGO_BUILD_JOBS=2 LEAN_NUM_THREADS=2 nice -n 19 ionice -c3 ./check.sh STAGE`. `LEAN_NUM_THREADS=2` limits `lake build` to two `lean` processes.
 - Run `uptime` before a heavy job. Give each subagent brief these rules.
 - A measurement that the plan defines runs as the plan says, on the quiet host that the plan defines.
