@@ -914,6 +914,7 @@ ul.plain li::marker { color: var(--muted); }
         <li><b>Pure.</b> The result depends only on the state and the envelope.</li>
         <li><b>Bounded.</b> A step has a fixed cost limit. A long computation splits across steps, because a long step delays every instance on its shard.</li>
         <li><b>Total.</b> A step returns a result for every input. A fault, such as an integer overflow, is a defined result. The state does not change, and the runtime records the fault.</li>
+        <li><b>Exact.</b> No operation clamps, wraps or cuts a value. A result that does not fit gives a fault or an error value. Rounding is the one exception, and each rounding has a stated mode (section 8).</li>
         <li><b>Errors are values.</b> <code>Result</code> and <code>?</code> carry errors. There are no exceptions.</li>
       </ul>
     </div>
@@ -940,30 +941,30 @@ ul.plain li::marker { color: var(--muted); }
       <div>
         <div role="tabpanel" id="lw-p1" aria-labelledby="lw-t1">
           <div class="codehead"><span>sum.bk</span><span>what the agent writes</span></div>
-<pre class="code"><span class="k">fn</span> main() -&gt; Unit <span class="k">uses</span> {<span class="e">ConsoleIn</span>, <span class="e">ConsoleOut</span>} {
-    <span class="k">let</span> total = sum_lines(0)
-    <span class="e">ConsoleOut</span>.print(<span class="s">"sum = {total}"</span>)
-}
-
-<span class="k">fn</span> sum_lines(acc: Int) -&gt; Int <span class="k">uses</span> {<span class="e">ConsoleIn</span>} {
+<pre class="code"><span class="k">fn</span> sum_lines(acc: Int) -&gt; Int <span class="k">uses</span> {<span class="e">ConsoleIn</span>} {
     <span class="k">match</span> <span class="e">ConsoleIn</span>.read_line() <span class="k">deadline</span> 10m {
         Line(text) =&gt; sum_lines(acc + Int.parse(text).unwrap_or(0))
         End | TimedOut =&gt; acc
     }
+}
+
+<span class="k">fn</span> main() -&gt; Unit <span class="k">uses</span> {<span class="e">ConsoleIn</span>, <span class="e">ConsoleOut</span>} {
+    <span class="k">let</span> total = sum_lines(0)
+    <span class="e">ConsoleOut</span>.print(<span class="s">"sum = {total}"</span>)
 }</pre>
         </div>
         <div role="tabpanel" id="lw-p2" aria-labelledby="lw-t2" hidden>
           <div class="codehead"><span>sum.bk</span><span>the compiler marks each effect</span></div>
-<pre class="code"><span class="k">fn</span> main() -&gt; Unit <span class="k">uses</span> {<span class="e">ConsoleIn</span>, <span class="e">ConsoleOut</span>} {
-    <span class="k">let</span> total = sum_lines(0)
-    <mark class="o"><span class="e">ConsoleOut</span>.print(<span class="s">"sum = {total}"</span>)</mark>        <span class="c">// output</span>
-}
-
-<span class="k">fn</span> sum_lines(acc: Int) -&gt; Int <span class="k">uses</span> {<span class="e">ConsoleIn</span>} {
+<pre class="code"><span class="k">fn</span> sum_lines(acc: Int) -&gt; Int <span class="k">uses</span> {<span class="e">ConsoleIn</span>} {
     <span class="k">match</span> <mark class="w"><span class="e">ConsoleIn</span>.read_line() <span class="k">deadline</span> 10m</mark> {   <span class="c">// W1</span>
         Line(text) =&gt; sum_lines(acc + Int.parse(text).unwrap_or(0))
         End | TimedOut =&gt; acc
     }
+}
+
+<span class="k">fn</span> main() -&gt; Unit <span class="k">uses</span> {<span class="e">ConsoleIn</span>, <span class="e">ConsoleOut</span>} {
+    <span class="k">let</span> total = sum_lines(0)
+    <mark class="o"><span class="e">ConsoleOut</span>.print(<span class="s">"sum = {total}"</span>)</mark>        <span class="c">// output</span>
 }</pre>
           <div class="legend"><span><i class="w"></i>wait point: the code needs the answer</span><span><i class="o"></i>output: no answer, no wait</span></div>
         </div>
@@ -1035,7 +1036,7 @@ ul.plain li::marker { color: var(--muted); }
         </figure>
         <div class="lw-note" aria-live="polite">
           <h3 id="lw-title">1 · Plain code</h3>
-          <p id="lw-text">The code reads like a normal functional program. The <code>uses</code> clause lists every effect that the code can perform. <code>ConsoleIn</code> reads and <code>ConsoleOut</code> prints. The read has a deadline, as every request does. <code>sum_lines</code> calls itself as its last action, so it needs no growing stack.</p>
+          <p id="lw-text">The code reads like a normal functional program. The <code>uses</code> clause lists every effect that the code can perform. <code>ConsoleIn</code> reads and <code>ConsoleOut</code> prints. The read has a deadline, as every request does. <code>sum_lines</code> comes before <code>main</code>, because an item names only items before it. <code>sum_lines</code> calls itself through a wait, as its last action, so it needs no growing stack. A function names itself only through a wait or with <code>decreases</code> (section 11).</p>
         </div>
       </div>
     </div>
@@ -1800,15 +1801,15 @@ ul.plain li::marker { color: var(--muted); }
     <table class="tbl min880">
       <thead><tr><th>Part</th><th>Rule</th><th>Why</th></tr></thead>
       <tbody>
-        <tr><th>Values</th><td>Each value has exactly one owner. A value is a tree, never a graph with shared parts.</td><td>No collector pauses, no shared mutable data, simple proofs</td></tr>
+        <tr><th>Values</th><td>Each value has exactly one owner. A value is a tree, never a graph with shared parts. A type does not contain itself. Nested data of any size uses a collection with a maximum.</td><td>No collector pauses, no shared mutable data, simple proofs</td></tr>
         <tr><th>Change</th><td>A binding never changes. Code builds a new value from the old one. When nothing else uses the old value, the compiler reuses its storage, so the update happens in place.</td><td>The code reads like math, and it runs as fast as an update in place.</td></tr>
         <tr><th>Parameters</th><td>A parameter is a read (no keyword) or a <code>take</code> (the callee consumes the value). A copy that is not trivial must be written <code>copy(x)</code>. The compiler accepts only the modes that the mode function M computes from the body (below).</td><td>One signature for each body, and every copy is visible</td></tr>
         <tr><th>Temporaries</th><td>Each shard has one arena, a block of memory where an allocation only moves a pointer forward. A step puts its temporary values there. The runtime clears the whole arena after the step.</td><td>An allocation costs one addition, and hot paths free nothing.</td></tr>
-        <tr><th>Instance state</th><td>A record of fixed size, plus collections. Every collection states a maximum size, for example <code>max 500</code>. It can also state an age limit, for example <code>retain 30d</code>.</td><td>Every instance has a known upper size.</td></tr>
+        <tr><th>Instance state</th><td>A record of fixed size, plus collections. Every collection states a maximum size, for example <code>max 500</code>. It can also state an age limit, for example <code>retain 30d</code>. The nesting depth of a type has a fixed limit, and the nesting depth of program text has a fixed limit.</td><td>Every instance has a known upper size, and every tool has a known stack need.</td></tr>
         <tr><th>Inputs</th><td>Each type has one byte layout. A step reads an input field directly in the received bytes, with no copy. An input with personal fields is copied once at admission, to encrypt them (section 6).</td><td>No decode cost. An experiment must confirm the layout size.</td></tr>
         <tr><th>Cold data</th><td>A step reads a collection entry only by a key that the input or the fixed record gives. The shard loads that entry before the step starts.</td><td>A step never waits for a disk.</td></tr>
         <tr><th>Numbers</th><td>Floating-point numbers follow IEEE 754 binary64 and binary32 strictly: no automatic fused multiply-add, one NaN bit pattern, no fast-math mode. The standard library gives correctly rounded <code>sin</code>, <code>exp</code> and similar functions. Money uses a <code>Decimal</code> type.</td><td>The same bits on every CPU, so a replay and its evidence stay exact. Some numeric code runs slower.</td></tr>
-        <tr><th>Text</th><td>Text is always valid UTF-8. Equality compares bytes. Normalization (NFC) is an explicit library function. Each release pins one Unicode version, and the evidence hash includes it.</td><td>Fast and predictable. The runtime never changes the text that it receives.</td></tr>
+        <tr><th>Text</th><td>Text is always valid UTF-8. Each text value and each principal name has at most 65,535 bytes, and a text type can state a smaller maximum. An identifier has at most 63 characters. Equality compares bytes. Normalization (NFC) is an explicit library function. Each release pins one Unicode version, and the evidence hash includes it.</td><td>Fast and predictable. The runtime never changes the text that it receives. Every text has a known upper size.</td></tr>
         <tr><th>Shared data</th><td>Large read-only data is <code>const</code> in the program. A change to it is a new release.</td><td>No shared counters on hot paths</td></tr>
       </tbody>
     </table>
@@ -2104,6 +2105,8 @@ ul.plain li::marker { color: var(--muted); }
       <tbody>
         <tr><th>The compiler accepts only formatted text in normal form.</th><td>Layout choices. Equal forms such as <code>stay</code> or <code>next Same</code>, <code>a + b</code> or <code>b + a</code>, <code>30s</code> or <code>30000ms</code>. A helper function with one caller.</td></tr>
         <tr><th>One construct per concept</th><td><code>match</code> only, no <code>if</code>. <code>Result</code> only, no exceptions. One loop form: <code>for</code> over a collection. Recursion only where <code>for</code> cannot work, with <code>decreases</code> or with a wait. One way to answer each pair of state and input.</td></tr>
+        <tr><th>An item names only items before it.</th><td>Forward references and cycles between definitions. The items form a graph with no cycle, and a compiler reads the text one time.</td></tr>
+        <tr><th>Each static rule is local.</th><td>A search or a closure in the checker. The check of a program needs O(n log n) time.</td></tr>
         <tr><th>Closed world</th><td>Reflection, macros, overloads, implicit conversions, import cycles and unused names. Every name resolves to one definition at compile time.</td></tr>
         <tr><th>The task fixes the public names.</th><td>Different names for the same thing</td></tr>
         <tr><th>The cell is the unit of edit.</th><td>Edit conflicts. The code store keeps each cell with its hash, and agents edit cells through the store. They never edit lines of text. Two agents that change two different cells of one machine never collide. Git can keep the canonical text as an export.</td></tr>
@@ -2678,7 +2681,7 @@ ul.plain li::marker { color: var(--muted); }
   /* Lowering stages */
   const lower = document.getElementById('lower');
   const notes = {
-    1: ['1 · Plain code', 'The code reads like a normal functional program. The <code>uses</code> clause lists every effect that the code can perform. <code>ConsoleIn</code> reads and <code>ConsoleOut</code> prints. The read has a deadline, as every request does. <code>sum_lines</code> calls itself as its last action, so it needs no growing stack.'],
+    1: ['1 · Plain code', 'The code reads like a normal functional program. The <code>uses</code> clause lists every effect that the code can perform. <code>ConsoleIn</code> reads and <code>ConsoleOut</code> prints. The read has a deadline, as every request does. <code>sum_lines</code> comes before <code>main</code>, because an item names only items before it. <code>sum_lines</code> calls itself through a wait, as its last action, so it needs no growing stack. A function names itself only through a wait or with <code>decreases</code> (section 11).'],
     2: ['2 · Wait points', 'A call whose answer the code needs is a wait point. Here <code>read_line</code> is the only one (W1). The code cannot go on until a line, the end of the input or the deadline arrives. <code>print</code> needs no answer, so the step sends it and goes on.'],
     3: ['3 · Hidden states', 'The compiler makes one state for each wait point. The variables that the code still needs at that point become the data of the state. Here only <code>acc</code> is needed. The answers to requests become the input type. The platform sends <code>Boot</code> when the program starts.'],
     4: ['4 · Step function', 'The step is a pure function of the state and the envelope. A request leaves as an output (<code>read_line.start</code>), and its answer comes back as the next input. Every pair of state and input has a branch; the checker proves that the last branch never runs. A test calls <code>step</code> directly, with no console.']
