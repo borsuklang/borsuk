@@ -94,7 +94,7 @@ The plan gives each phase its work, its `check.sh` stage and its gate.
 1. Do the work of the phase.
 2. Run `./check.sh` with the stage of the phase. Repeat until it passes.
 3. If the phase changes code, run `/no-comments` on the phase diff. Apply each accepted finding. Code is each source file in `crates/`, `spec/` and `experiments/`, `check.sh`, and each source file of a tool that the plan names. Measurement data is not code.
-4. If the phase changes code, start a new Opus phase reviewer. Give it the plan, the phase name and the diff. Tell it to examine plan conformance, correctness, the mirror rule, each part that the plan does not name, and time, memory and stack use on large and deeply nested inputs.
+4. If the phase changes code, start a new Opus phase reviewer. Give it the plan, the phase name and the diff. Tell it to examine plan conformance, correctness, the mirror rule, each part that the plan does not name, and the cost rule: time, memory and stack use on large inputs and on inputs at the depth limits.
 5. Apply each finding that the plan supports. Write each rejected finding and its reason in the commit body. Then run `./check.sh` with the stage until it passes.
 6. Run the gate of the phase, if the phase has one. After a gate finding, correct it and go to step 2.
 7. Make one commit on `build/vV`. Add each file by its path. Never use `git add -A` or `git add .`. Push the branch.
@@ -112,7 +112,8 @@ Design:
 
 - Think about the whole system before you change a file.
 - A local fix that adds a special case, a flag, a wrapper or a second representation is wrong. Find the cause in the shared code. Correct it there.
-- Lean is the reference. Rust uses the Lean module names and function names in `snake_case`, and the same rule codes and fault names.
+- Lean is the reference. Rust uses the Lean module names and function names in `snake_case`, and the same rule codes and fault names. Three checks of `check.sh` examine this mirror rule: each Rust function of a mirrored module has the Lean name; `brk-ref` and `brk` give equal outputs on the corpus and on the generated programs; each scale file passes under one limit of time and one limit of memory in both executables. The plan names the steps. No tool compares the parameters of two functions.
+- Cost rule: `read`, `check`, `print`, `encode` and `decode` use at most O(n log n) time and O(n) memory, where n is the size of the program text plus the size of the frame. A finding against this rule is a correction. `check.sh` holds a limit of time and a `MemoryMax` for the scale files that the plan names, with the same values for both executables. Each other work on speed or memory is legal only where the plan names it.
 
 Checks:
 
