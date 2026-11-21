@@ -833,21 +833,21 @@ Each theorem has no `sorry` and no new `axiom`. Imports come only from Lean core
 
 ### 9.2 Kani
 
-Kani 0.66.0 runs bounded proofs on the Rust code. The harnesses are behind `#[cfg(kani)]`, in `proofs.rs` of their crate. Each harness has a `#[kani::unwind]` value: the smallest value with which it passes.
+Kani 0.68.0 runs bounded proofs on the Rust code. The harnesses are behind `#[cfg(kani)]`, in `proofs.rs` of their crate. Each harness has a `#[kani::unwind]` value: the smallest value with which it passes.
 
 | Harness | Crate | Property | Covers | `MemoryMax` |
 |---|---|---|---|---|
 | `codec_round_trip_scalars` | `borsuk-core` | v0.0.2 section 7.2 | 7 | 4G |
 | `codec_canonical` | `borsuk-core` | v0.0.2 section 7.2 | 7 | 4G |
 | `layout_frame_fixed` | `borsuk-core` | For each byte string of up to 12 bytes at the row of `(Option Int)`: `frame_ok` ends with no panic and no overflow. | 1 | 2G |
-| `layout_frame_variable` | `borsuk-core` | The same, for up to 12 bytes at the row of `(Option Text)` | 1 | 4G |
-| `layout_frame_record` | `borsuk-core` | The same, for up to 16 bytes at the row of a record with one `Int` field and one `Text` field | 1 | 6G |
+| `layout_frame_variable` | `borsuk-core` | The same, for up to 12 bytes at the row of `(Option Text)` | 1 | 6G |
+| `layout_frame_record` | `borsuk-core` | The same, for up to 16 bytes at the row of a record with one `Int` field and one `Text` field | 1 | 8G |
 | `arena_alloc` | `borsuk-native` | For each three sizes, each a `u32` of at most 131072: three allocations on a new arena end with no panic and no overflow, and no two of the three ranges share a byte. | 1 | 2G |
 
 - The three `layout_frame` harnesses use one constant layout table in `proofs.rs`, with the rows of `Int`, `Text`, `(Option Int)`, `(Option Text)` and the record. They call `frame_ok` with a row number. They build no `Value` and no `Program`.
 - "No panic and no overflow" is the set of default checks of Kani: each panic, each arithmetic overflow and each access outside a slice fails the harness. The release build has the same overflow checks (section 11).
 - A `layout_frame` harness has one `kani::cover!` for an accepted byte string. The harness `arena_alloc` has one for three sizes that are not 0. The bounds admit an accepted frame of each type: 9 bytes for `(Option Int)`, 5 bytes for `(Option Text)` with an empty text, and 14 bytes for the record with an empty text.
-- A prototype of the table form gave these values with Kani 0.66.0: 0.09 GB for the fixed row, 2.5 GB for the variable row, 4.5 GB for the record row at 16 bytes. A step of the prototype read `core::str` for the UTF-8 check. The codec uses its own UTF-8 check. If a harness passes only above its limit, or only above 900 seconds, stop and ask.
+- A prototype of the table form gave these values with Kani 0.68.0: 0.11 GB for the fixed row, 5.0 GB and 338 seconds for the variable row, 6.3 GB and about 850 seconds for the record row at 16 bytes. A step of the prototype read `core::str` for the UTF-8 check. The codec uses its own UTF-8 check. If a harness passes only above its limit, or only above 900 seconds, stop and ask.
 - Kani does not prove `frame_ok` on an enum, a `Result`, a list, a map, a `StepId` and a `Ticket`, and it proves no round trip of a composite. The theorems of section 9.1 and the corpus check these types.
 
 ## 10. Corpus
@@ -1030,7 +1030,7 @@ P0 writes these changes. After P0, `check.sh` changes only in these cases. P4 re
 
 | Phase | Work | Stage | Gate | Done when |
 |---|---|---|---|---|
-| P0 Setup | Branch `build/v0.0.3`. Check the tools: Lean v4.36.0, Rust 1.98.1, `cargo kani --version` 0.66.0 and its toolchain in `rustup toolchain list`, `valgrind --version` 3.18.1 and `valgrind --tool=dhat` on a small program, `systemd-run --user --scope` with `MemoryMax`, and `timeout`. Write the versions in the commit body. Add the scopes `layout`, `own`, `mode`, `lower` and `native` to `cog.toml` and to the scope table of `docs/process/commits.md`. The release profile, the `check.sh` changes and the skeletons of the new modules, crates and packages. | `setup` | — | `check.sh setup` passes. |
+| P0 Setup | Branch `build/v0.0.3`. Check the tools: Lean v4.36.0, Rust 1.98.1, `cargo kani --version` 0.68.0 and its toolchain `nightly-2026-08-21` in `rustup toolchain list`, `valgrind --version` 3.18.1 and `valgrind --tool=dhat` on a small program, `systemd-run --user --scope` with `MemoryMax`, and `timeout`. Write the versions in the commit body. Add the scopes `layout`, `own`, `mode`, `lower` and `native` to `cog.toml` and to the scope table of `docs/process/commits.md`. The release profile, the `check.sh` changes and the skeletons of the new modules, crates and packages. | `setup` | — | `check.sh setup` passes. |
 | P1a Q2 code | The crate `borsuk-q2` with its four ways, its generator and its four modes, and `cells.brk`. | `setup` | G1 | The mode `check` prints `check ok`, G1 passes, and the commit of the crate is pushed. |
 | P1b Q2 count | From the commit of P1a with a clean working tree: the mode `count`, the mode `hex` and the DHAT runs of section 7.5, into `results/`. The report and the decision. A row for the report in the v0.0.3 table of `docs/index.md`. For row 2 of section 7.6: the corrected code in its own commit, with a new G1, then this phase again. | `setup` | G1b | G1b passes, the report exists, and the commit body gives the decision. |
 | P2 Corpus | The package `borsuk-gen` and each corpus file of section 10.1 except the `.trace` files. If the decision adds the `set` form: the two files of section 7.8. | `setup` | G2 | G2 passes. |
@@ -1076,7 +1076,7 @@ These rules add to v0.0.1 section 9 and v0.0.2 section 11:
 - No Rust code outside `nat.rs` clamps, wraps or cuts an integer (step 13). `min`, `max` and the two helpers of section 1.2 are mathematics with a defined result.
 - The product uses Rust `std` and Lean `Init` only. Kani, `valgrind` and the oracle of v0.0.2 are tools outside the product.
 - No code of v0.0.3 has `unsafe`. The arena gives positions, not pointers. Each crate has `#![forbid(unsafe_code)]`.
-- `borsuk-core` and `borsuk-native` compile on the toolchain of Kani 0.66.0. If clippy 1.98.1 and that toolchain disagree, stop and ask.
+- `borsuk-core` and `borsuk-native` compile on the toolchain of Kani 0.68.0. If clippy 1.98.1 and that toolchain disagree, stop and ask.
 - The lowering has no pass that changes the order or the number of the operations of a cell. Rules K1 to K9 are its only memory rules.
 - v0.0.3 builds no store, no log record, no wire form of a message, no hash, no module, no function parameter, no text operation and no code generator other than the Rust text.
 - The coordinator and each gate reviewer compute a byte string or a count with a Rust program. No other language computes an expected value.
@@ -1088,5 +1088,5 @@ These rules add to v0.0.1 section 9 and v0.0.2 section 11:
 - The design, sections 3, 5, 8, 10, 11, 14 and 16. The milestones: row 0.0.3, the implementation stack, and "Reasons for the order".
 - The v0.0.1 plan and the v0.0.2 plan. v0.0.2 section 6.3 gives the SplitMix64 stream and the kind rules of the generators.
 - Cap'n Proto, `ReaderOptions::nestingLimit`, and FlatBuffers, `Verifier` `max_depth`: the default depth 64 (section 2.1). ISO/IEC 9899:2011 (C11), section 5.2.4.1: 127 levels of blocks and 63 levels of parentheses (section 2.1).
-- [The Kani Rust Verifier](https://model-checking.github.io/kani/), version 0.66.0 (section 9.2).
+- [The Kani Rust Verifier](https://model-checking.github.io/kani/), version 0.68.0 (section 9.2).
 - [Valgrind DHAT](https://valgrind.org/docs/manual/dh-manual.html), version 3.18.1 (section 7.5).
