@@ -17,7 +17,7 @@ Apply each item before round 1. Each item comes from a defect that a reviewer fo
 
 ## Earlier rules and the design
 
-- The table of changes (plan section 1.1) lists each change to a rule of an earlier plan, by section: the grammar, the types, the faults, the codes and their order, the tree order of errors, ITEM, the `test` output, the steps of `check.sh`, "the only checks", "no external code", "no performance work" and the mirror rule.
+- The table of changes (plan section 1.1) lists each change to a rule of an earlier plan, by section: the grammar, the types, the faults, the codes and their order, the tree order of errors, ITEM, the `test` output, the steps of `check.sh`, "the only checks", "no external code", the cost rule and the mirror rule.
 - Each difference from the design is named in the plan at its place, with its reason.
 - Each rule of the goal that the plan needs an exception to is one of the exceptions that the goal permits (host rules, freeze points, mirror rule).
 
