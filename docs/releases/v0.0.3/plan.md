@@ -835,6 +835,8 @@ Each theorem has no `sorry` and no new `axiom`. Imports come only from Lean core
 
 Kani 0.68.0 runs bounded proofs on the Rust code. The harnesses are behind `#[cfg(kani)]`, in `proofs.rs` of their crate. Each harness has a `#[kani::unwind]` value: the smallest value with which it passes.
 
+Kani checks only the code that reads bytes from outside (the frame check of section 5.4) and the code that gives out memory (the arena of section 6.3), and it keeps the two harnesses of v0.0.2. A Kani limit is never a reason to change the IR, the codec or the lowering.
+
 | Harness | Crate | Property | Covers | `MemoryMax` |
 |---|---|---|---|---|
 | `codec_round_trip_scalars` | `borsuk-core` | v0.0.2 section 7.2 | 7 | 4G |
