@@ -3,51 +3,17 @@
 use std::process::ExitCode;
 
 use borsuk_core::check::{Code, Diag, check};
+use borsuk_core::codec::{decode, encode, full};
 use borsuk_core::eval::{Output, Value};
 use borsuk_core::ir::{
-    Actor, Deployment, Example, FIRED_NAME, Fact, Item, Line, Name, Program, XExpr, find_fn,
+    Actor, Deployment, Example, FIRED_NAME, Fact, Item, Line, Name, Program, Ty, XExpr, find_fn,
     find_machine,
 };
 use borsuk_core::print::{show_diag, show_event};
 use borsuk_core::read::read;
-use borsuk_core::runtime::{Event, Instance, LIFE, MachineState, Reply, deliver, run_entry, start};
-
-fn xvalue(inst: Option<(&str, &Value)>, x: &XExpr) -> Option<Value> {
-    match x {
-        XExpr::Int(n) => Some(Value::Int(*n)),
-        XExpr::Text(s) => Some(Value::Text(s.clone())),
-        XExpr::Bool(b) => Some(Value::Bool(*b)),
-        XExpr::Unit => Some(Value::Unit),
-        XExpr::Dur(n) => Some(Value::Dur(*n)),
-        XExpr::Var(a) => Some(Value::Principal(a.clone())),
-        XExpr::New(ctor, args) => xvalues(inst, args).map(|vs| Value::Con(ctor.clone(), vs)),
-        XExpr::Some(x) => xvalue(inst, x).map(|v| Value::Some(Box::new(v))),
-        XExpr::None => Some(Value::None),
-        XExpr::Ok(x) => xvalue(inst, x).map(|v| Value::Ok(Box::new(v))),
-        XExpr::Err(x) => xvalue(inst, x).map(|v| Value::Err(Box::new(v))),
-        XExpr::Step(n) => inst.map(|(m, k)| Value::StepId {
-            machine: m.to_string(),
-            key: Box::new(k.clone()),
-            life: LIFE,
-            seq: *n,
-        }),
-        XExpr::Ticket(n) => inst.map(|(m, k)| Value::Ticket {
-            machine: m.to_string(),
-            key: Box::new(k.clone()),
-            life: LIFE,
-            seq: *n,
-            idx: 0,
-        }),
-    }
-}
-
-fn xvalues(inst: Option<(&str, &Value)>, xs: &[XExpr]) -> Option<Vec<Value>> {
-    let mut vs = Vec::new();
-    for x in xs {
-        vs.push(xvalue(inst, x)?);
-    }
-    Some(vs)
-}
+use borsuk_core::runtime::{
+    Event, Instance, MachineState, Reply, deliver, run_entry, start, xvalue, xvalues,
+};
 
 fn fault_is(kind: &str, reply: Option<Reply>) -> bool {
     match reply {
@@ -142,12 +108,37 @@ fn run_example(p: &Program, ex: &Example) -> bool {
     }
 }
 
+fn decode_holds(p: &Program, t: &Ty, frame: &[u8], expect: Option<&XExpr>) -> bool {
+    match expect {
+        Some(x) => match xvalue(None, x) {
+            Some(v) => {
+                decode(p, t, frame).as_ref() == Some(&v)
+                    && (!full(p, t, frame) || encode(p, t, &v).as_deref() == Some(frame))
+            }
+            None => false,
+        },
+        None => decode(p, t, frame).is_none(),
+    }
+}
+
+fn run_decode(p: &Program, name: &str, t: &Ty, frame: &[u8], expect: Option<&XExpr>) -> bool {
+    let ok = decode_holds(p, t, frame, expect);
+    println!("{} {}", if ok { "pass" } else { "fail" }, name);
+    ok
+}
+
+fn run_item(p: &Program, it: &Item) -> bool {
+    match it {
+        Item::Example(ex) => run_example(p, ex),
+        Item::Decode(name, t, frame, expect) => run_decode(p, name, t, frame, expect.as_ref()),
+        _ => true,
+    }
+}
+
 fn test(p: &Program) -> u8 {
     let mut ok = true;
     for it in &p.items {
-        if let Item::Example(ex) = it
-            && !run_example(p, ex)
-        {
+        if !run_item(p, it) {
             ok = false;
         }
     }

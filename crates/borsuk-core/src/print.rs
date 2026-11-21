@@ -1,5 +1,7 @@
 use crate::check::Diag;
+use crate::decimal::dec_text;
 use crate::eval::{Envelope, Output, Value};
+use crate::float::{Fmt, float_text};
 use crate::ir::EnvField;
 use crate::runtime::{Event, Reply};
 
@@ -81,6 +83,9 @@ pub fn show_value(v: &Value) -> String {
         Value::None => String::from("(none)"),
         Value::Ok(v) => form(&[String::from("ok"), show_value(v)]),
         Value::Err(v) => form(&[String::from("err"), show_value(v)]),
+        Value::F64(b) => form(&[String::from("f64"), float_text(Fmt::B64, *b)]),
+        Value::F32(b) => form(&[String::from("f32"), float_text(Fmt::B32, u64::from(*b))]),
+        Value::Dec(s, c) => form(&[String::from("dec"), dec_text(*s, *c)]),
     }
 }
 

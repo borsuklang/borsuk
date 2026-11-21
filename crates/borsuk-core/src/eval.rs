@@ -1,6 +1,12 @@
-use crate::ir::{
-    Arith, Arm, Bind, Block, EnvField, Expr, Item, Name, Op, Pat, Program, Stmt, Tail, find_fn,
+use crate::decimal::{dec_add, dec_div, dec_mul, dec_round, dec_sub};
+use crate::float::{
+    Fmt, float_add, float_div, float_fma, float_lt, float_mul, float_sqrt, float_sub,
 };
+use crate::ir::{
+    Arith, Arm, Bind, Block, EnvField, Expr, Fault, Item, Mode, Name, Op, Pat, Program, Stmt, Tail,
+    Ty, find_fn,
+};
+use crate::math::{math1, math2};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Value {
@@ -29,21 +35,9 @@ pub enum Value {
     None,
     Ok(Box<Value>),
     Err(Box<Value>),
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Fault {
-    Overflow,
-    Impossible,
-}
-
-impl Fault {
-    pub fn text(&self) -> &'static str {
-        match self {
-            Fault::Overflow => "overflow",
-            Fault::Impossible => "impossible",
-        }
-    }
+    F64(u64),
+    F32(u32),
+    Dec(u32, i128),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -117,11 +111,132 @@ pub fn arith(op: Arith, a: i64, b: i64) -> Option<i64> {
     }
 }
 
+pub fn lift_fault<T>(r: Result<T, Fault>) -> Result<T, Stop> {
+    r.map_err(Stop::Fault)
+}
+
+pub fn float_result(f: Fmt, r: Option<u64>) -> Result<Value, Stop> {
+    match (f, r) {
+        (Fmt::B64, Some(n)) => Ok(Value::F64(n)),
+        (Fmt::B32, Some(n)) => Ok(Value::F32(n as u32)),
+        (_, None) => Err(Stop::Fault(Fault::Undecided)),
+    }
+}
+
+pub fn float1(g: impl Fn(Fmt, u64) -> Option<u64>, a: &Value) -> Result<Value, Stop> {
+    match a {
+        Value::F64(x) => float_result(Fmt::B64, g(Fmt::B64, *x)),
+        Value::F32(x) => float_result(Fmt::B32, g(Fmt::B32, u64::from(*x))),
+        _ => stuck(),
+    }
+}
+
+pub fn float2(
+    g: impl Fn(Fmt, u64, u64) -> Option<u64>,
+    a: &Value,
+    b: &Value,
+) -> Result<Value, Stop> {
+    match (a, b) {
+        (Value::F64(x), Value::F64(y)) => float_result(Fmt::B64, g(Fmt::B64, *x, *y)),
+        (Value::F32(x), Value::F32(y)) => {
+            float_result(Fmt::B32, g(Fmt::B32, u64::from(*x), u64::from(*y)))
+        }
+        _ => stuck(),
+    }
+}
+
+pub fn float3(
+    g: impl Fn(Fmt, u64, u64, u64) -> Option<u64>,
+    a: &Value,
+    b: &Value,
+    c: &Value,
+) -> Result<Value, Stop> {
+    match (a, b, c) {
+        (Value::F64(x), Value::F64(y), Value::F64(z)) => {
+            float_result(Fmt::B64, g(Fmt::B64, *x, *y, *z))
+        }
+        (Value::F32(x), Value::F32(y), Value::F32(z)) => float_result(
+            Fmt::B32,
+            g(Fmt::B32, u64::from(*x), u64::from(*y), u64::from(*z)),
+        ),
+        _ => stuck(),
+    }
+}
+
+pub fn float_arith(op: Arith, f: Fmt, x: u64, y: u64) -> u64 {
+    match op {
+        Arith::Add => float_add(f, x, y),
+        Arith::Sub => float_sub(f, x, y),
+        Arith::Mul => float_mul(f, x, y),
+    }
+}
+
+pub fn dec_arith(op: Arith, s: u32, x: i128, t: u32, y: i128) -> Result<Value, Stop> {
+    match op {
+        Arith::Add => {
+            if s == t {
+                lift_fault(dec_add(x, y)).map(|c| Value::Dec(s, c))
+            } else {
+                stuck()
+            }
+        }
+        Arith::Sub => {
+            if s == t {
+                lift_fault(dec_sub(x, y)).map(|c| Value::Dec(s, c))
+            } else {
+                stuck()
+            }
+        }
+        Arith::Mul => lift_fault(dec_mul(x, y)).map(|c| Value::Dec(s + t, c)),
+    }
+}
+
+pub fn arith_value(op: Arith, a: &Value, b: &Value) -> Result<Value, Stop> {
+    match (a, b) {
+        (Value::Int(x), Value::Int(y)) => checked(arith(op, *x, *y)),
+        (Value::Dec(s, x), Value::Dec(t, y)) => dec_arith(op, *s, *x, *t, *y),
+        _ => float2(|f, x, y| Some(float_arith(op, f, x, y)), a, b),
+    }
+}
+
+pub fn dec_value(t: &Ty, r: Result<i128, Fault>) -> Result<Value, Stop> {
+    let c = lift_fault(r)?;
+    match t {
+        Ty::Int => checked(i64::try_from(c).ok()),
+        Ty::Decimal(s) => Ok(Value::Dec(*s, c)),
+        _ => stuck(),
+    }
+}
+
+pub fn round_value(t: &Ty, mode: Mode, a: &Value) -> Result<Value, Stop> {
+    match a {
+        Value::Int(n) => dec_value(t, dec_round(t, mode, 0, i128::from(*n))),
+        Value::Dec(s, c) => dec_value(t, dec_round(t, mode, *s, *c)),
+        _ => stuck(),
+    }
+}
+
+pub fn div_value(t: &Ty, mode: Mode, a: &Value, b: &Value) -> Result<Value, Stop> {
+    match (a, b) {
+        (Value::Dec(sa, x), Value::Dec(sb, y)) => dec_value(t, dec_div(t, mode, *sa, *x, *sb, *y)),
+        _ => stuck(),
+    }
+}
+
 pub fn less(a: &Value, b: &Value) -> Option<bool> {
     match (a, b) {
         (Value::Int(a), Value::Int(b)) => Some(a < b),
         (Value::Time(a), Value::Time(b)) => Some(a < b),
         (Value::Dur(a), Value::Dur(b)) => Some(a < b),
+        (Value::F64(a), Value::F64(b)) => Some(float_lt(Fmt::B64, *a, *b)),
+        (Value::F32(a), Value::F32(b)) => Some(float_lt(Fmt::B32, u64::from(*a), u64::from(*b))),
+        (Value::Dec(s, a), Value::Dec(t, b)) => {
+            if s == t {
+                Some(a < b)
+            } else {
+                None
+            }
+        }
         _ => None,
     }
 }
@@ -173,9 +288,12 @@ pub fn match_pat(pat: &Pat, v: &Value) -> Option<Vec<(Name, Value)>> {
 
 pub fn field_index(p: &Program, record: &str, field: &str) -> Option<usize> {
     p.items.iter().find_map(|item| match item {
-        Item::Record(r, fields) => {
+        Item::Record(r, fields, inits) => {
             if r == record {
-                fields.iter().position(|f| f.name == field)
+                fields
+                    .iter()
+                    .chain(inits.iter().map(|(f, _)| f))
+                    .position(|f| f.name == field)
             } else {
                 None
             }
@@ -247,10 +365,7 @@ pub fn eval_expr(
         Expr::Arith(op, a, b) => {
             let va = eval_expr(p, env, fuel, locals, outs, a)?;
             let vb = eval_expr(p, env, fuel, locals, outs, b)?;
-            match (va, vb) {
-                (Value::Int(x), Value::Int(y)) => checked(arith(*op, x, y)),
-                _ => stuck(),
-            }
+            arith_value(*op, &va, &vb)
         }
         Expr::Eq(a, b) => {
             let va = eval_expr(p, env, fuel, locals, outs, a)?;
@@ -307,6 +422,42 @@ pub fn eval_expr(
             let t = eval_expr(p, env, fuel, locals, outs, arg)?;
             outs.push(Output::Cancel(t));
             Ok(Value::Unit)
+        }
+        Expr::F64(b) => Ok(Value::F64(*b)),
+        Expr::F32(b) => Ok(Value::F32(*b)),
+        Expr::Dec(s, c) => Ok(Value::Dec(*s, *c)),
+        Expr::Div(a, b) => {
+            let va = eval_expr(p, env, fuel, locals, outs, a)?;
+            let vb = eval_expr(p, env, fuel, locals, outs, b)?;
+            float2(|f, x, y| Some(float_div(f, x, y)), &va, &vb)
+        }
+        Expr::Sqrt(a) => {
+            let va = eval_expr(p, env, fuel, locals, outs, a)?;
+            float1(|f, x| Some(float_sqrt(f, x)), &va)
+        }
+        Expr::Fma(a, b, c) => {
+            let va = eval_expr(p, env, fuel, locals, outs, a)?;
+            let vb = eval_expr(p, env, fuel, locals, outs, b)?;
+            let vc = eval_expr(p, env, fuel, locals, outs, c)?;
+            float3(|f, x, y, z| Some(float_fma(f, x, y, z)), &va, &vb, &vc)
+        }
+        Expr::Fn1(func, a) => {
+            let va = eval_expr(p, env, fuel, locals, outs, a)?;
+            float1(|f, x| math1(f, *func, x), &va)
+        }
+        Expr::Fn2(func, a, b) => {
+            let va = eval_expr(p, env, fuel, locals, outs, a)?;
+            let vb = eval_expr(p, env, fuel, locals, outs, b)?;
+            float2(|f, x, y| math2(f, *func, x, y), &va, &vb)
+        }
+        Expr::Round(t, mode, a) => {
+            let va = eval_expr(p, env, fuel, locals, outs, a)?;
+            round_value(t, *mode, &va)
+        }
+        Expr::DivMode(t, mode, a, b) => {
+            let va = eval_expr(p, env, fuel, locals, outs, a)?;
+            let vb = eval_expr(p, env, fuel, locals, outs, b)?;
+            div_value(t, *mode, &va, &vb)
         }
     }
 }

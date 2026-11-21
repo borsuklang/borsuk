@@ -11,6 +11,9 @@ pub enum Ty {
     Principal,
     StepId,
     Ticket,
+    F64,
+    F32,
+    Decimal(u32),
     Option(Box<Ty>),
     Result(Box<Ty>, Box<Ty>),
     Named(Name),
@@ -35,6 +38,44 @@ pub enum Arith {
     Add,
     Sub,
     Mul,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Fn1 {
+    Exp,
+    Exp2,
+    Log,
+    Log2,
+    Log10,
+    Sin,
+    Cos,
+    Tan,
+    Asin,
+    Acos,
+    Atan,
+    Sinh,
+    Cosh,
+    Tanh,
+    Cbrt,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Fn2 {
+    Pow,
+    Atan2,
+    Hypot,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Mode {
+    Up,
+    Down,
+    Ceiling,
+    Floor,
+    HalfUp,
+    HalfDown,
+    HalfEven,
+    Exact,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -66,6 +107,16 @@ pub enum Expr {
     And(Box<Expr>, Box<Expr>),
     Not(Box<Expr>),
     Op(Op, Box<Expr>),
+    F64(u64),
+    F32(u32),
+    Dec(u32, i128),
+    Div(Box<Expr>, Box<Expr>),
+    Sqrt(Box<Expr>),
+    Fma(Box<Expr>, Box<Expr>, Box<Expr>),
+    Fn1(Fn1, Box<Expr>),
+    Fn2(Fn2, Box<Expr>, Box<Expr>),
+    Round(Ty, Mode, Box<Expr>),
+    DivMode(Ty, Mode, Box<Expr>, Box<Expr>),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -220,6 +271,13 @@ pub enum XExpr {
     Err(Box<XExpr>),
     Step(i64),
     Ticket(i64),
+    F64(u64),
+    F32(u32),
+    Dec(u32, i128),
+    Time(i64),
+    Principal(String),
+    StepOf(Name, Box<XExpr>, i64, i64),
+    TicketOf(Name, Box<XExpr>, i64, i64, i64),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -265,7 +323,7 @@ pub struct Example {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Item {
     Newtype(Name, Ty),
-    Record(Name, Vec<Param>),
+    Record(Name, Vec<Param>, Vec<(Param, XExpr)>),
     Enum(Name, Vec<Variant>),
     Role(Name),
     Fn(Fn),
@@ -273,11 +331,33 @@ pub enum Item {
     Machine(Machine),
     Deployment(Deployment),
     Example(Example),
+    Decode(Name, Ty, Vec<u8>, Option<XExpr>),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Program {
     pub items: Vec<Item>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Fault {
+    Overflow,
+    Impossible,
+    Inexact,
+    DivZero,
+    Undecided,
+}
+
+impl Fault {
+    pub fn text(&self) -> &'static str {
+        match self {
+            Fault::Overflow => "overflow",
+            Fault::Impossible => "impossible",
+            Fault::Inexact => "inexact",
+            Fault::DivZero => "div_zero",
+            Fault::Undecided => "undecided",
+        }
+    }
 }
 
 pub const FIRED_NAME: &str = "Fired";

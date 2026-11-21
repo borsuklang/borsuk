@@ -1,7 +1,7 @@
 use crate::ir::{
-    Actor, Arm, Bind, Block, Cell, Deployment, Effect, EnvField, Example, Expr, FIRED_NAME, Fact,
-    Fn, Group, In, Item, Line, Machine, Msg, Name, Op, Param, Pat, Program, Stmt, Tail, Ty,
-    Variant, XExpr, cells_for, find_cell, find_fn, find_machine, find_msg, find_protocol,
+    Actor, Arith, Arm, Bind, Block, Cell, Deployment, Effect, EnvField, Example, Expr, FIRED_NAME,
+    Fact, Fn, Group, In, Item, Line, Machine, Mode, Msg, Name, Op, Param, Pat, Program, Stmt, Tail,
+    Ty, Variant, XExpr, cells_for, find_cell, find_fn, find_machine, find_msg, find_protocol,
     find_state, fired_params, input_names,
 };
 
@@ -22,6 +22,8 @@ pub enum Code {
     MissingCell,
     RejectNotDeclared,
     BadEntry,
+    RecursiveType,
+    LayoutLimit,
 }
 
 impl Code {
@@ -31,17 +33,19 @@ impl Code {
             Code::UnknownName => 1,
             Code::DuplicateName => 2,
             Code::Recursion => 3,
-            Code::WrongEnding => 4,
-            Code::TypeMismatch => 5,
-            Code::MatchArms => 6,
-            Code::EffectPosition => 7,
-            Code::EffectNotDeclared => 8,
-            Code::EnvPosition => 9,
-            Code::InitHasFields => 10,
-            Code::DuplicateCell => 11,
-            Code::MissingCell => 12,
-            Code::RejectNotDeclared => 13,
-            Code::BadEntry => 14,
+            Code::RecursiveType => 4,
+            Code::LayoutLimit => 5,
+            Code::WrongEnding => 6,
+            Code::TypeMismatch => 7,
+            Code::MatchArms => 8,
+            Code::EffectPosition => 9,
+            Code::EffectNotDeclared => 10,
+            Code::EnvPosition => 11,
+            Code::InitHasFields => 12,
+            Code::DuplicateCell => 13,
+            Code::MissingCell => 14,
+            Code::RejectNotDeclared => 15,
+            Code::BadEntry => 16,
         }
     }
 
@@ -62,6 +66,8 @@ impl Code {
             Code::MissingCell => "missing-cell",
             Code::RejectNotDeclared => "reject-not-declared",
             Code::BadEntry => "bad-entry",
+            Code::RecursiveType => "recursive-type",
+            Code::LayoutLimit => "layout-limit",
         }
     }
 }
@@ -96,9 +102,11 @@ impl EnvField {
     }
 }
 
-pub fn find_record<'a>(p: &'a Program, name: &str) -> Option<&'a [Param]> {
+pub fn find_record<'a>(p: &'a Program, name: &str) -> Option<Vec<&'a Param>> {
     p.items.iter().find_map(|item| match item {
-        Item::Record(r, fields) if r == name => Some(fields.as_slice()),
+        Item::Record(r, fields, inits) if r == name => {
+            Some(fields.iter().chain(inits.iter().map(|(f, _)| f)).collect())
+        }
         _ => None,
     })
 }
@@ -127,7 +135,7 @@ pub fn is_role(p: &Program, name: &str) -> bool {
 pub fn is_type_name(p: &Program, name: &str) -> bool {
     p.items.iter().any(|item| match item {
         Item::Newtype(n, _) => n == name,
-        Item::Record(r, _) => r == name,
+        Item::Record(r, _, _) => r == name,
         Item::Enum(e, _) => e == name,
         _ => false,
     })
@@ -136,9 +144,13 @@ pub fn is_type_name(p: &Program, name: &str) -> bool {
 pub fn find_ctor(p: &Program, name: &str) -> Option<(Ty, Vec<Ty>)> {
     p.items.iter().find_map(|item| match item {
         Item::Newtype(n, t) if n == name => Some((Ty::Named(n.clone()), vec![t.clone()])),
-        Item::Record(r, fields) if r == name => Some((
+        Item::Record(r, fields, inits) if r == name => Some((
             Ty::Named(r.clone()),
-            fields.iter().map(|f| f.ty.clone()).collect(),
+            fields
+                .iter()
+                .chain(inits.iter().map(|(f, _)| f))
+                .map(|f| f.ty.clone())
+                .collect(),
         )),
         Item::Enum(e, variants) => variants
             .iter()
@@ -187,6 +199,15 @@ pub fn is_op(p: &Program, e: &Expr) -> bool {
 
 pub fn has_op(p: &Program, e: &Expr) -> bool {
     match e {
+        Expr::Int(_)
+        | Expr::Text(_)
+        | Expr::Bool(_)
+        | Expr::Unit
+        | Expr::Dur(_)
+        | Expr::Var(_)
+        | Expr::Env(_)
+        | Expr::None => false,
+        Expr::F64(_) | Expr::F32(_) | Expr::Dec(_, _) => false,
         Expr::Call(f, args) => uses_console(p, f) || has_op_any(p, args),
         Expr::New(_, args) => has_op_any(p, args),
         Expr::Get(e, _) => has_op(p, e),
@@ -199,7 +220,13 @@ pub fn has_op(p: &Program, e: &Expr) -> bool {
         Expr::Lt(a, b) => has_op(p, a) || has_op(p, b),
         Expr::And(a, b) => has_op(p, a) || has_op(p, b),
         Expr::Op(_, _) => true,
-        _ => false,
+        Expr::Div(a, b) => has_op(p, a) || has_op(p, b),
+        Expr::Sqrt(a) => has_op(p, a),
+        Expr::Fma(a, b, c) => has_op(p, a) || has_op(p, b) || has_op(p, c),
+        Expr::Fn1(_, a) => has_op(p, a),
+        Expr::Fn2(_, a, b) => has_op(p, a) || has_op(p, b),
+        Expr::Round(_, _, a) => has_op(p, a),
+        Expr::DivMode(_, _, a, b) => has_op(p, a) || has_op(p, b),
     }
 }
 
@@ -505,6 +532,113 @@ pub fn recursion_check(w: &mut Walk, p: &Program, ctx: &Ctx, callee: &str) {
     }
 }
 
+impl Ty {
+    pub fn is_float(&self) -> bool {
+        matches!(self, Ty::F64 | Ty::F32)
+    }
+
+    pub fn is_ordered(&self) -> bool {
+        matches!(
+            self,
+            Ty::Int | Ty::Time | Ty::Duration | Ty::F64 | Ty::F32 | Ty::Decimal(_)
+        )
+    }
+}
+
+pub fn same_type(ok: fn(&Ty) -> bool, ts: &[Ty]) -> Option<Ty> {
+    match ts {
+        [t, rest @ ..] => {
+            if ok(t) && rest.iter().all(|x| x == t) {
+                Some(t.clone())
+            } else {
+                None
+            }
+        }
+        [] => None,
+    }
+}
+
+pub fn arith_type(op: Arith, ts: &[Ty]) -> Option<Ty> {
+    match (op, ts) {
+        (Arith::Mul, [Ty::Decimal(a), Ty::Decimal(b)]) => {
+            a.checked_add(*b).filter(|s| *s <= 37).map(Ty::Decimal)
+        }
+        (Arith::Mul, ts) => same_type(|t| *t == Ty::Int || t.is_float(), ts),
+        (_, ts) => same_type(
+            |t| *t == Ty::Int || t.is_float() || matches!(t, Ty::Decimal(_)),
+            ts,
+        ),
+    }
+}
+
+pub fn less_type(ts: &[Ty]) -> Option<Ty> {
+    same_type(Ty::is_ordered, ts).map(|_| Ty::Bool)
+}
+
+pub fn round_legal(target: &Ty, source: &Ty) -> bool {
+    match (target, source) {
+        (Ty::Decimal(s), Ty::Decimal(a)) => s != a,
+        (Ty::Decimal(_), Ty::Int) => true,
+        (Ty::Int, Ty::Decimal(_)) => true,
+        (_, _) => false,
+    }
+}
+
+pub fn keeps_digits(target: &Ty, source: &Ty) -> bool {
+    match (target, source) {
+        (Ty::Decimal(s), Ty::Decimal(a)) => a < s,
+        (Ty::Decimal(_), Ty::Int) => true,
+        (Ty::Int, Ty::Decimal(a)) => *a == 0,
+        (_, _) => false,
+    }
+}
+
+pub fn round_type(target: &Ty, mode: Mode, ts: &[Ty]) -> Option<Ty> {
+    match ts {
+        [source] => {
+            if round_legal(target, source) && (mode == Mode::Exact || !keeps_digits(target, source))
+            {
+                Some(target.clone())
+            } else {
+                None
+            }
+        }
+        _ => None,
+    }
+}
+
+pub fn div_type(target: &Ty, ts: &[Ty]) -> Option<Ty> {
+    match ts {
+        [Ty::Decimal(_), Ty::Decimal(_)] => {
+            if matches!(target, Ty::Decimal(_)) {
+                Some(target.clone())
+            } else {
+                None
+            }
+        }
+        _ => None,
+    }
+}
+
+pub fn form_result(
+    w: &mut Walk,
+    ctx: &Ctx,
+    want: Option<Ty>,
+    operands: Vec<Option<Ty>>,
+    rule: impl FnOnce(&[Ty]) -> Option<Ty>,
+) -> Option<Ty> {
+    match operands.into_iter().collect::<Option<Vec<Ty>>>() {
+        None => None,
+        Some(ts) => match rule(&ts) {
+            Some(t) => fits(w, ctx, want, Some(t)),
+            None => {
+                mismatch(w, ctx);
+                None
+            }
+        },
+    }
+}
+
 pub fn walk_type(w: &mut Walk, p: &Program, t: &Ty) {
     match t {
         Ty::Named(n) => {
@@ -579,7 +713,9 @@ pub fn walk_expr(
             let t = walk_expr(w, p, ctx, false, None, target);
             match t {
                 Some(Ty::Named(r)) => {
-                    match find_record(p, &r).and_then(|fs| fs.iter().find(|f| f.name == *field)) {
+                    match find_record(p, &r)
+                        .and_then(|fs| fs.into_iter().find(|f| f.name == *field))
+                    {
                         Some(f) => fits(w, ctx, want, Some(f.ty.clone())),
                         None => {
                             mismatch(w, ctx);
@@ -638,10 +774,10 @@ pub fn walk_expr(
                 None
             }
         },
-        Expr::Arith(_, a, b) => {
-            walk_expr(w, p, ctx, false, Some(Ty::Int), a);
-            walk_expr(w, p, ctx, false, Some(Ty::Int), b);
-            fits(w, ctx, want, Some(Ty::Int))
+        Expr::Arith(op, a, b) => {
+            let ta = walk_expr(w, p, ctx, false, None, a);
+            let tb = walk_expr(w, p, ctx, false, None, b);
+            form_result(w, ctx, want, vec![ta, tb], |ts| arith_type(*op, ts))
         }
         Expr::Eq(a, b) => {
             let t = walk_expr(w, p, ctx, false, None, a);
@@ -649,20 +785,9 @@ pub fn walk_expr(
             fits(w, ctx, want, Some(Ty::Bool))
         }
         Expr::Lt(a, b) => {
-            let t = walk_expr(w, p, ctx, false, None, a);
-            match t {
-                Some(Ty::Int) | Some(Ty::Time) | Some(Ty::Duration) => {
-                    walk_expr(w, p, ctx, false, t, b);
-                }
-                Some(_) => {
-                    mismatch(w, ctx);
-                    walk_expr(w, p, ctx, false, None, b);
-                }
-                None => {
-                    walk_expr(w, p, ctx, false, None, b);
-                }
-            }
-            fits(w, ctx, want, Some(Ty::Bool))
+            let ta = walk_expr(w, p, ctx, false, None, a);
+            let tb = walk_expr(w, p, ctx, false, None, b);
+            form_result(w, ctx, want, vec![ta, tb], less_type)
         }
         Expr::And(a, b) => {
             walk_expr(w, p, ctx, false, Some(Ty::Bool), a);
@@ -677,6 +802,46 @@ pub fn walk_expr(
             op_check(w, ctx, allow_op, o.effect());
             walk_expr(w, p, ctx, false, Some(o.arg()), arg);
             fits(w, ctx, want, Some(o.result()))
+        }
+        Expr::F64(_) => fits(w, ctx, want, Some(Ty::F64)),
+        Expr::F32(_) => fits(w, ctx, want, Some(Ty::F32)),
+        Expr::Dec(s, _) => fits(w, ctx, want, Some(Ty::Decimal(*s))),
+        Expr::Div(a, b) => {
+            let ta = walk_expr(w, p, ctx, false, None, a);
+            let tb = walk_expr(w, p, ctx, false, None, b);
+            form_result(w, ctx, want, vec![ta, tb], |ts| same_type(Ty::is_float, ts))
+        }
+        Expr::Sqrt(a) => {
+            let ta = walk_expr(w, p, ctx, false, None, a);
+            form_result(w, ctx, want, vec![ta], |ts| same_type(Ty::is_float, ts))
+        }
+        Expr::Fma(a, b, c) => {
+            let ta = walk_expr(w, p, ctx, false, None, a);
+            let tb = walk_expr(w, p, ctx, false, None, b);
+            let tc = walk_expr(w, p, ctx, false, None, c);
+            form_result(w, ctx, want, vec![ta, tb, tc], |ts| {
+                same_type(Ty::is_float, ts)
+            })
+        }
+        Expr::Fn1(_, a) => {
+            let ta = walk_expr(w, p, ctx, false, None, a);
+            form_result(w, ctx, want, vec![ta], |ts| same_type(Ty::is_float, ts))
+        }
+        Expr::Fn2(_, a, b) => {
+            let ta = walk_expr(w, p, ctx, false, None, a);
+            let tb = walk_expr(w, p, ctx, false, None, b);
+            form_result(w, ctx, want, vec![ta, tb], |ts| same_type(Ty::is_float, ts))
+        }
+        Expr::Round(t, mode, a) => {
+            walk_type(w, p, t);
+            let ta = walk_expr(w, p, ctx, false, None, a);
+            form_result(w, ctx, want, vec![ta], |ts| round_type(t, *mode, ts))
+        }
+        Expr::DivMode(t, _, a, b) => {
+            walk_type(w, p, t);
+            let ta = walk_expr(w, p, ctx, false, None, a);
+            let tb = walk_expr(w, p, ctx, false, None, b);
+            form_result(w, ctx, want, vec![ta, tb], |ts| div_type(t, ts))
         }
     }
 }
@@ -912,21 +1077,6 @@ pub fn walk_fields(w: &mut Walk, p: &Program, ctx: &mut Ctx, fields: &[Param]) {
     }
 }
 
-pub fn walk_record_fields(w: &mut Walk, p: &Program, seen: Vec<Name>, fields: &[Param]) {
-    match fields {
-        [] => {}
-        [f, fs @ ..] => {
-            if seen.contains(&f.name) {
-                duplicate(w, &f.name);
-            }
-            walk_type(w, p, &f.ty);
-            let mut seen = seen;
-            seen.push(f.name.clone());
-            walk_record_fields(w, p, seen, fs);
-        }
-    }
-}
-
 pub fn bind_params(w: &mut Walk, ctx: &mut Ctx, params: &[Param]) {
     match params {
         [] => {}
@@ -1038,6 +1188,16 @@ pub fn walk_machine(w: &mut Walk, p: &Program, m: &Machine) {
     }
 }
 
+pub fn machine_key(w: &mut Walk, p: &Program, m: &str) -> Option<Ty> {
+    match find_machine(p, m) {
+        Some(mach) => Some(mach.key.clone()),
+        None => {
+            unknown(w, m);
+            None
+        }
+    }
+}
+
 pub fn walk_x_expr(
     w: &mut Walk,
     p: &Program,
@@ -1117,6 +1277,21 @@ pub fn walk_x_expr(
                 None
             }
         },
+        XExpr::F64(_) => fits(w, ctx, want, Some(Ty::F64)),
+        XExpr::F32(_) => fits(w, ctx, want, Some(Ty::F32)),
+        XExpr::Dec(s, _) => fits(w, ctx, want, Some(Ty::Decimal(*s))),
+        XExpr::Time(_) => fits(w, ctx, want, Some(Ty::Time)),
+        XExpr::Principal(_) => fits(w, ctx, want, Some(Ty::Principal)),
+        XExpr::StepOf(m, k, _, _) => {
+            let key = machine_key(w, p, m);
+            walk_x_expr(w, p, ctx, key, k);
+            fits(w, ctx, want, Some(Ty::StepId))
+        }
+        XExpr::TicketOf(m, k, _, _, _) => {
+            let key = machine_key(w, p, m);
+            walk_x_expr(w, p, ctx, key, k);
+            fits(w, ctx, want, Some(Ty::Ticket))
+        }
     }
 }
 
@@ -1142,7 +1317,18 @@ pub fn refers_to_instance(x: &XExpr) -> bool {
         XExpr::Some(x) => refers_to_instance(x),
         XExpr::Ok(x) => refers_to_instance(x),
         XExpr::Err(x) => refers_to_instance(x),
-        _ => false,
+        XExpr::StepOf(_, k, _, _) => refers_to_instance(k),
+        XExpr::TicketOf(_, k, _, _, _) => refers_to_instance(k),
+        XExpr::Int(_)
+        | XExpr::Text(_)
+        | XExpr::Bool(_)
+        | XExpr::Unit
+        | XExpr::Dur(_)
+        | XExpr::Var(_)
+        | XExpr::None => false,
+        XExpr::F64(_) | XExpr::F32(_) | XExpr::Dec(_, _) | XExpr::Time(_) | XExpr::Principal(_) => {
+            false
+        }
     }
 }
 
@@ -1150,6 +1336,37 @@ pub fn any_refers_to_instance(xs: &[XExpr]) -> bool {
     match xs {
         [] => false,
         [x, rest @ ..] => refers_to_instance(x) || any_refers_to_instance(rest),
+    }
+}
+
+pub fn walk_constant(w: &mut Walk, p: &Program, ctx: &Ctx, want: Option<Ty>, x: &XExpr) {
+    walk_x_expr(w, p, ctx, want, x);
+    if refers_to_instance(x) {
+        mismatch(w, ctx);
+    }
+}
+
+pub fn walk_record_fields(
+    w: &mut Walk,
+    p: &Program,
+    ctx: &Ctx,
+    seen: Vec<Name>,
+    fields: &[(&Param, Option<&XExpr>)],
+) {
+    match fields {
+        [] => {}
+        [(f, init), fs @ ..] => {
+            if seen.contains(&f.name) {
+                duplicate(w, &f.name);
+            }
+            walk_type(w, p, &f.ty);
+            if let Some(x) = init {
+                walk_constant(w, p, ctx, Some(f.ty.clone()), x);
+            }
+            let mut seen = seen;
+            seen.push(f.name.clone());
+            walk_record_fields(w, p, ctx, seen, fs);
+        }
     }
 }
 
@@ -1273,10 +1490,7 @@ pub fn walk_example(w: &mut Walk, p: &Program, ex: &Example) {
         machine: m,
         ..base_ctx(&ex.name)
     };
-    walk_x_expr(w, p, &ctx, m.map(|m| m.key.clone()), &ex.key);
-    if refers_to_instance(&ex.key) {
-        mismatch(w, &ctx);
-    }
+    walk_constant(w, p, &ctx, m.map(|m| m.key.clone()), &ex.key);
     walk_actors(w, p, &mut ctx, &ex.actors);
     for l in &ex.lines {
         walk_line(w, p, &ctx, l);
@@ -1313,9 +1527,14 @@ pub fn walk_item(w: &mut Walk, p: &Program, index: usize, it: &Item) {
             declare(w, n);
             walk_type(w, p, t);
         }
-        Item::Record(r, fields) => {
+        Item::Record(r, fields, inits) => {
             declare(w, r);
-            walk_record_fields(w, p, Vec::new(), fields);
+            let all: Vec<(&Param, Option<&XExpr>)> = fields
+                .iter()
+                .map(|f| (f, None))
+                .chain(inits.iter().map(|(f, x)| (f, Some(x))))
+                .collect();
+            walk_record_fields(w, p, &base_ctx(r), Vec::new(), &all);
         }
         Item::Enum(e, variants) => {
             declare(w, e);
@@ -1337,6 +1556,13 @@ pub fn walk_item(w: &mut Walk, p: &Program, index: usize, it: &Item) {
         Item::Machine(m) => walk_machine(w, p, m),
         Item::Deployment(d) => walk_deployment(w, p, d),
         Item::Example(ex) => walk_example(w, p, ex),
+        Item::Decode(n, t, _, expect) => {
+            declare(w, n);
+            walk_type(w, p, t);
+            if let Some(x) = expect {
+                walk_constant(w, p, &base_ctx(n), Some(t.clone()), x);
+            }
+        }
     }
 }
 
@@ -1402,8 +1628,224 @@ pub fn cell_diags(p: &Program, it: &Item) -> Vec<Diag> {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Node {
+    Named(Name),
+    StepId,
+    Ticket,
+}
+
+impl Node {
+    pub fn text(&self) -> &str {
+        match self {
+            Node::Named(n) => n,
+            Node::StepId => "StepId",
+            Node::Ticket => "Ticket",
+        }
+    }
+}
+
+pub fn ty_nodes(t: &Ty) -> Vec<Node> {
+    match t {
+        Ty::Named(n) => vec![Node::Named(n.clone())],
+        Ty::Option(t) => ty_nodes(t),
+        Ty::Result(a, b) => {
+            let mut ns = ty_nodes(a);
+            ns.extend(ty_nodes(b));
+            ns
+        }
+        Ty::StepId => vec![Node::StepId],
+        Ty::Ticket => vec![Node::Ticket],
+        _ => Vec::new(),
+    }
+}
+
+pub fn item_nodes(p: &Program, n: &str) -> Vec<Node> {
+    p.items
+        .iter()
+        .flat_map(|item| match item {
+            Item::Record(r, fields, inits) if r == n => fields
+                .iter()
+                .chain(inits.iter().map(|(f, _)| f))
+                .flat_map(|f| ty_nodes(&f.ty))
+                .collect(),
+            Item::Enum(e, variants) if e == n => variants
+                .iter()
+                .flat_map(|v| v.fields.iter().flat_map(ty_nodes))
+                .collect(),
+            Item::Newtype(m, t) if m == n => ty_nodes(t),
+            _ => Vec::new(),
+        })
+        .collect()
+}
+
+pub fn key_nodes(p: &Program) -> Vec<Node> {
+    p.items
+        .iter()
+        .flat_map(|item| match item {
+            Item::Machine(m) => ty_nodes(&m.key),
+            _ => Vec::new(),
+        })
+        .collect()
+}
+
+pub fn edges(p: &Program, n: &Node) -> Vec<Node> {
+    match n {
+        Node::Named(n) => item_nodes(p, n),
+        Node::StepId => key_nodes(p),
+        Node::Ticket => key_nodes(p),
+    }
+}
+
+pub fn type_names(p: &Program) -> Vec<Name> {
+    p.items
+        .iter()
+        .filter_map(|item| match item {
+            Item::Record(r, _, _) => Some(r.clone()),
+            Item::Enum(e, _) => Some(e.clone()),
+            Item::Newtype(n, _) => Some(n.clone()),
+            _ => None,
+        })
+        .collect()
+}
+
+pub fn node_count(p: &Program) -> usize {
+    type_names(p).len() + 2
+}
+
+pub fn add_new(seen: &[Node], xs: &[Node]) -> Vec<Node> {
+    let mut known = seen.to_vec();
+    let mut fresh = Vec::new();
+    for x in xs {
+        if !known.contains(x) {
+            known.push(x.clone());
+            fresh.push(x.clone());
+        }
+    }
+    fresh
+}
+
+pub fn reach(p: &Program, k: usize, seen: Vec<Node>, frontier: &[Node]) -> Vec<Node> {
+    match k.checked_sub(1) {
+        None => seen,
+        Some(k) => {
+            let out: Vec<Node> = frontier.iter().flat_map(|n| edges(p, n)).collect();
+            let next = add_new(&seen, &out);
+            if next.is_empty() {
+                seen
+            } else {
+                let mut seen = seen;
+                seen.extend(next.iter().cloned());
+                reach(p, k, seen, &next)
+            }
+        }
+    }
+}
+
+pub fn reach_from(p: &Program, start: &[Node]) -> Vec<Node> {
+    let first = add_new(&[], start);
+    reach(p, node_count(p), first.clone(), &first)
+}
+
+pub fn reaches_self(p: &Program, n: &Node) -> bool {
+    reach_from(p, &edges(p, n)).contains(n)
+}
+
+pub fn reaches_special(p: &Program, start: &[Node]) -> bool {
+    let ns = reach_from(p, start);
+    ns.contains(&Node::StepId) || ns.contains(&Node::Ticket)
+}
+
+pub fn first_special(p: &Program, k: usize, t: &Ty) -> Option<Node> {
+    match t {
+        Ty::StepId => Some(Node::StepId),
+        Ty::Ticket => Some(Node::Ticket),
+        Ty::Option(t) => first_special(p, k, t),
+        Ty::Result(a, b) => first_special(p, k, a).or_else(|| first_special(p, k, b)),
+        Ty::Named(n) => match k.checked_sub(1) {
+            None => None,
+            Some(k) => {
+                if reaches_special(p, &edges(p, &Node::Named(n.clone()))) {
+                    p.items.iter().find_map(|item| match item {
+                        Item::Record(r, fields, inits) if r == n => fields
+                            .iter()
+                            .chain(inits.iter().map(|(f, _)| f))
+                            .find_map(|f| first_special(p, k, &f.ty)),
+                        Item::Enum(e, variants) if e == n => variants
+                            .iter()
+                            .find_map(|v| v.fields.iter().find_map(|t| first_special(p, k, t))),
+                        Item::Newtype(m, t) if m == n => first_special(p, k, t),
+                        _ => None,
+                    })
+                } else {
+                    None
+                }
+            }
+        },
+        _ => None,
+    }
+}
+
+pub fn recursive_type_diags(p: &Program) -> Vec<Diag> {
+    let message = |n: &Node| Diag {
+        code: Code::RecursiveType,
+        message: format!("type {} contains itself", tick(n.text())),
+    };
+    match type_names(p)
+        .into_iter()
+        .find(|n| reaches_self(p, &Node::Named(n.clone())))
+    {
+        Some(n) => vec![message(&Node::Named(n))],
+        None => {
+            let key_loop = p.items.iter().find_map(|item| match item {
+                Item::Machine(m) => {
+                    if reaches_special(p, &ty_nodes(&m.key)) {
+                        first_special(p, node_count(p), &m.key)
+                    } else {
+                        None
+                    }
+                }
+                _ => None,
+            });
+            match key_loop {
+                Some(n) => vec![message(&n)],
+                None => Vec::new(),
+            }
+        }
+    }
+}
+
+pub fn layout_diag(t: &str) -> Diag {
+    Diag {
+        code: Code::LayoutLimit,
+        message: format!("type {} exceeds the layout limits", tick(t)),
+    }
+}
+
+pub fn layout_diags(it: &Item) -> Vec<Diag> {
+    match it {
+        Item::Record(r, fields, inits) => {
+            if fields.len() + inits.len() > 65535 {
+                vec![layout_diag(r)]
+            } else {
+                Vec::new()
+            }
+        }
+        Item::Enum(e, variants) => {
+            if variants.len() > 256 {
+                vec![layout_diag(e)]
+            } else {
+                Vec::new()
+            }
+        }
+        _ => Vec::new(),
+    }
+}
+
 pub fn diagnose(p: &Program) -> Vec<Diag> {
     let mut ds = walk_program(p);
+    ds.extend(p.items.iter().flat_map(layout_diags));
+    ds.extend(recursive_type_diags(p));
     ds.extend(p.items.iter().flat_map(|it| cell_diags(p, it)));
     ds
 }

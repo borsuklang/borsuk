@@ -1,7 +1,7 @@
-use crate::eval::{Ending, Envelope, Fault, Output, Stop, Value, eval_block, fuel_of};
+use crate::eval::{Ending, Envelope, Output, Stop, Value, eval_block, fuel_of};
 use crate::ir::{
-    Actor, Fn, Machine, Msg, Name, Program, find_cell, find_machine, find_msg, find_state,
-    input_params,
+    Actor, Fault, Fn, Machine, Msg, Name, Program, XExpr, find_cell, find_machine, find_msg,
+    find_state, input_params,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -208,4 +208,59 @@ pub fn run_entry(p: &Program, f: &Fn) -> Option<Result<Vec<Output>, Fault>> {
         Err(Stop::Fault(fault)) => Some(Err(fault)),
         Err(Stop::Stuck) => None,
     }
+}
+
+pub fn xvalue(inst: Option<(&str, &Value)>, x: &XExpr) -> Option<Value> {
+    match x {
+        XExpr::Int(n) => Some(Value::Int(*n)),
+        XExpr::Text(s) => Some(Value::Text(s.clone())),
+        XExpr::Bool(b) => Some(Value::Bool(*b)),
+        XExpr::Unit => Some(Value::Unit),
+        XExpr::Dur(n) => Some(Value::Dur(*n)),
+        XExpr::Var(a) => Some(Value::Principal(a.clone())),
+        XExpr::New(ctor, args) => xvalues(inst, args).map(|vs| Value::Con(ctor.clone(), vs)),
+        XExpr::Some(x) => xvalue(inst, x).map(|v| Value::Some(Box::new(v))),
+        XExpr::None => Some(Value::None),
+        XExpr::Ok(x) => xvalue(inst, x).map(|v| Value::Ok(Box::new(v))),
+        XExpr::Err(x) => xvalue(inst, x).map(|v| Value::Err(Box::new(v))),
+        XExpr::Step(n) => inst.map(|(m, k)| Value::StepId {
+            machine: m.to_string(),
+            key: Box::new(k.clone()),
+            life: LIFE,
+            seq: *n,
+        }),
+        XExpr::Ticket(n) => inst.map(|(m, k)| Value::Ticket {
+            machine: m.to_string(),
+            key: Box::new(k.clone()),
+            life: LIFE,
+            seq: *n,
+            idx: 0,
+        }),
+        XExpr::F64(b) => Some(Value::F64(*b)),
+        XExpr::F32(b) => Some(Value::F32(*b)),
+        XExpr::Dec(s, c) => Some(Value::Dec(*s, *c)),
+        XExpr::Time(n) => Some(Value::Time(*n)),
+        XExpr::Principal(a) => Some(Value::Principal(a.clone())),
+        XExpr::StepOf(m, k, life, seq) => xvalue(inst, k).map(|v| Value::StepId {
+            machine: m.clone(),
+            key: Box::new(v),
+            life: *life,
+            seq: *seq,
+        }),
+        XExpr::TicketOf(m, k, life, seq, idx) => xvalue(inst, k).map(|v| Value::Ticket {
+            machine: m.clone(),
+            key: Box::new(v),
+            life: *life,
+            seq: *seq,
+            idx: *idx,
+        }),
+    }
+}
+
+pub fn xvalues(inst: Option<(&str, &Value)>, xs: &[XExpr]) -> Option<Vec<Value>> {
+    let mut vs = Vec::new();
+    for x in xs {
+        vs.push(xvalue(inst, x)?);
+    }
+    Some(vs)
 }

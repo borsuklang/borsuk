@@ -1,7 +1,9 @@
+use crate::decimal::dec_parse;
+use crate::float::{Fmt, float_parse};
 use crate::ir::{
     Actor, Arith, Arm, Bind, Block, Cell, Deployment, Effect, EnvField, Example, Expr, Fact, Fn,
-    Group, In, Item, Line, Machine, Msg, Name, Op, Param, Pat, Platform, Program, Protocol, State,
-    Stmt, Tail, Ty, Variant, XExpr,
+    Fn1, Fn2, Group, In, Item, Line, Machine, Mode, Msg, Name, Op, Param, Pat, Platform, Program,
+    Protocol, State, Stmt, Tail, Ty, Variant, XExpr,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -158,81 +160,165 @@ fn parse_int(s: &str) -> Option<i64> {
     n.and_then(|v| i64::try_from(v).ok())
 }
 
-const RESERVED: &[&str] = &[
-    "program",
-    "newtype",
-    "record",
-    "enum",
-    "role",
-    "fn",
-    "uses",
-    "block",
-    "protocol",
-    "machine",
-    "key",
-    "init",
-    "state",
-    "group",
-    "in",
-    "on",
-    "deployment",
-    "platform",
-    "entry",
-    "example",
-    "command",
-    "rejects",
-    "by",
-    "query",
-    "let",
-    "do",
-    "value",
-    "next",
-    "outcome",
-    "stay",
-    "reject",
-    "answer",
-    "ignore",
-    "impossible",
-    "match",
-    "arm",
-    "unit",
-    "dur",
-    "env",
-    "call",
-    "new",
-    "get",
-    "some",
-    "none",
-    "ok",
-    "err",
-    "and",
-    "not",
-    "actor",
-    "send",
-    "fire",
-    "expect",
-    "refused",
-    "fault",
-    "ignored",
-    "step",
-    "ticket",
-    "Unit",
-    "Bool",
-    "Int",
-    "Text",
-    "Time",
-    "Duration",
-    "Principal",
-    "StepId",
-    "Ticket",
-    "Option",
-    "Result",
-    "true",
-    "false",
-    "Fired",
-    "ConsoleOut",
-    "Timer",
+const FN1_NAMES: &[(&str, Fn1)] = &[
+    ("exp", Fn1::Exp),
+    ("exp2", Fn1::Exp2),
+    ("log", Fn1::Log),
+    ("log2", Fn1::Log2),
+    ("log10", Fn1::Log10),
+    ("sin", Fn1::Sin),
+    ("cos", Fn1::Cos),
+    ("tan", Fn1::Tan),
+    ("asin", Fn1::Asin),
+    ("acos", Fn1::Acos),
+    ("atan", Fn1::Atan),
+    ("sinh", Fn1::Sinh),
+    ("cosh", Fn1::Cosh),
+    ("tanh", Fn1::Tanh),
+    ("cbrt", Fn1::Cbrt),
 ];
+
+const FN2_NAMES: &[(&str, Fn2)] = &[
+    ("pow", Fn2::Pow),
+    ("atan2", Fn2::Atan2),
+    ("hypot", Fn2::Hypot),
+];
+
+const MODE_NAMES: &[(&str, Mode)] = &[
+    ("up", Mode::Up),
+    ("down", Mode::Down),
+    ("ceiling", Mode::Ceiling),
+    ("floor", Mode::Floor),
+    ("half_up", Mode::HalfUp),
+    ("half_down", Mode::HalfDown),
+    ("half_even", Mode::HalfEven),
+    ("exact", Mode::Exact),
+];
+
+fn reserved() -> impl Iterator<Item = &'static str> {
+    [
+        "program",
+        "newtype",
+        "record",
+        "enum",
+        "role",
+        "fn",
+        "uses",
+        "block",
+        "protocol",
+        "machine",
+        "key",
+        "init",
+        "state",
+        "group",
+        "in",
+        "on",
+        "deployment",
+        "platform",
+        "entry",
+        "example",
+        "command",
+        "rejects",
+        "by",
+        "query",
+        "let",
+        "do",
+        "value",
+        "next",
+        "outcome",
+        "stay",
+        "reject",
+        "answer",
+        "ignore",
+        "impossible",
+        "match",
+        "arm",
+        "unit",
+        "dur",
+        "env",
+        "call",
+        "new",
+        "get",
+        "some",
+        "none",
+        "ok",
+        "err",
+        "and",
+        "not",
+        "actor",
+        "send",
+        "fire",
+        "expect",
+        "refused",
+        "fault",
+        "ignored",
+        "step",
+        "ticket",
+        "decode",
+        "invalid",
+        "f64",
+        "f32",
+        "dec",
+        "sqrt",
+        "fma",
+        "round",
+        "div",
+        "time",
+        "principal",
+        "Unit",
+        "Bool",
+        "Int",
+        "Text",
+        "Time",
+        "Duration",
+        "Principal",
+        "StepId",
+        "Ticket",
+        "Option",
+        "Result",
+        "true",
+        "false",
+        "Fired",
+        "ConsoleOut",
+        "Timer",
+        "F64",
+        "F32",
+        "Decimal",
+    ]
+    .into_iter()
+    .chain(FN1_NAMES.iter().map(|&(n, _)| n))
+    .chain(FN2_NAMES.iter().map(|&(n, _)| n))
+}
+
+fn lookup<T: Copy>(table: &[(&str, T)], key: &str) -> Option<T> {
+    table.iter().find(|&&(k, _)| k == key).map(|&(_, v)| v)
+}
+
+fn hex_digit(c: char) -> Option<u8> {
+    let b = u8::try_from(c).ok()?;
+    if is_digit(c) {
+        Some(b - b'0')
+    } else if ('a'..='f').contains(&c) {
+        Some(b - b'a' + 10)
+    } else {
+        None
+    }
+}
+
+fn hex_bytes(cs: &[char]) -> Option<Vec<u8>> {
+    let mut bytes = Vec::new();
+    let mut rest = cs;
+    loop {
+        match rest {
+            [] => return Some(bytes),
+            [_] => return None,
+            [hi, lo, more @ ..] => {
+                bytes.push(16 * hex_digit(*hi)? + hex_digit(*lo)?);
+                rest = more;
+            }
+        }
+    }
+}
 
 fn atom_expr(s: String) -> Option<Expr> {
     match parse_int(&s) {
@@ -253,6 +339,10 @@ fn atom_expr(s: String) -> Option<Expr> {
 
 fn non_empty<T>(xs: Vec<T>) -> Option<Vec<T>> {
     if xs.is_empty() { None } else { Some(xs) }
+}
+
+fn init_fields(fs: Vec<(Param, Option<XExpr>)>) -> Option<Vec<(Param, XExpr)>> {
+    fs.into_iter().map(|(f, x)| x.map(|v| (f, v))).collect()
 }
 
 struct Reader {
@@ -316,7 +406,7 @@ impl Reader {
 
     fn decl_name(&mut self) -> Option<Name> {
         let s = self.ident()?;
-        if RESERVED.contains(&s.as_str()) {
+        if reserved().any(|w| w == s) {
             None
         } else {
             Some(s)
@@ -336,7 +426,35 @@ impl Reader {
         parse_int(&self.atom()?)
     }
 
-    fn until_close<T>(&mut self, item: fn(&mut Reader) -> Option<T>) -> Option<Vec<T>> {
+    fn decimal_scale(&mut self) -> Option<u32> {
+        let s = self.int()?;
+        if (0..=37).contains(&s) {
+            Some(s as u32)
+        } else {
+            None
+        }
+    }
+
+    fn float_atom(&mut self, f: Fmt) -> Option<u64> {
+        float_parse(f, &self.atom()?)
+    }
+
+    fn decimal_atom(&mut self) -> Option<(u32, i128)> {
+        dec_parse(&self.atom()?)
+    }
+
+    fn mode_atom(&mut self) -> Option<Mode> {
+        lookup(MODE_NAMES, &self.atom()?)
+    }
+
+    fn text_token(&mut self) -> Option<String> {
+        match self.token()? {
+            Token::Text(s) => Some(s),
+            _ => None,
+        }
+    }
+
+    fn until_close<T>(&mut self, mut item: impl FnMut(&mut Reader) -> Option<T>) -> Option<Vec<T>> {
         let mut xs = Vec::new();
         while !self.peek_close() {
             xs.push(item(self)?);
@@ -344,12 +462,16 @@ impl Reader {
         Some(xs)
     }
 
-    fn some1<T>(&mut self, item: fn(&mut Reader) -> Option<T>) -> Option<Vec<T>> {
+    fn some1<T>(&mut self, item: impl FnMut(&mut Reader) -> Option<T>) -> Option<Vec<T>> {
         let xs = self.until_close(item)?;
         if xs.is_empty() { None } else { Some(xs) }
     }
 
-    fn headed<T>(&mut self, word: &str, item: fn(&mut Reader) -> Option<T>) -> Option<Vec<T>> {
+    fn headed<T>(
+        &mut self,
+        word: &str,
+        mut item: impl FnMut(&mut Reader) -> Option<T>,
+    ) -> Option<Vec<T>> {
         let mut xs = Vec::new();
         while self.peek_head() == Some(word) {
             xs.push(item(self)?);
@@ -369,6 +491,8 @@ impl Reader {
                 "Principal" => Some(Ty::Principal),
                 "StepId" => Some(Ty::StepId),
                 "Ticket" => Some(Ty::Ticket),
+                "F64" => Some(Ty::F64),
+                "F32" => Some(Ty::F32),
                 _ => {
                     if is_ident(&s) {
                         Some(Ty::Named(s))
@@ -388,6 +512,11 @@ impl Reader {
                     let err = self.ty()?;
                     self.close_paren()?;
                     Some(Ty::Result(Box::new(ok), Box::new(err)))
+                }
+                "Decimal" => {
+                    let s = self.decimal_scale()?;
+                    self.close_paren()?;
+                    Some(Ty::Decimal(s))
                 }
                 _ => None,
             },
@@ -431,7 +560,33 @@ impl Reader {
                     "ConsoleOut.print" => Expr::Op(Op::Print, Box::new(self.expr()?)),
                     "Timer.after" => Expr::Op(Op::After, Box::new(self.expr()?)),
                     "Timer.cancel" => Expr::Op(Op::Cancel, Box::new(self.expr()?)),
-                    _ => return None,
+                    "f64" => Expr::F64(self.float_atom(Fmt::B64)?),
+                    "f32" => Expr::F32(self.float_atom(Fmt::B32)? as u32),
+                    "dec" => {
+                        let (s, c) = self.decimal_atom()?;
+                        Expr::Dec(s, c)
+                    }
+                    "/" => Expr::Div(Box::new(self.expr()?), Box::new(self.expr()?)),
+                    "sqrt" => Expr::Sqrt(Box::new(self.expr()?)),
+                    "fma" => Expr::Fma(
+                        Box::new(self.expr()?),
+                        Box::new(self.expr()?),
+                        Box::new(self.expr()?),
+                    ),
+                    "round" => Expr::Round(self.ty()?, self.mode_atom()?, Box::new(self.expr()?)),
+                    "div" => Expr::DivMode(
+                        self.ty()?,
+                        self.mode_atom()?,
+                        Box::new(self.expr()?),
+                        Box::new(self.expr()?),
+                    ),
+                    h => match (lookup(FN1_NAMES, h), lookup(FN2_NAMES, h)) {
+                        (Some(f), _) => Expr::Fn1(f, Box::new(self.expr()?)),
+                        (None, Some(f)) => {
+                            Expr::Fn2(f, Box::new(self.expr()?), Box::new(self.expr()?))
+                        }
+                        (None, None) => return None,
+                    },
                 };
                 self.close_paren()?;
                 Some(e)
@@ -584,14 +739,6 @@ impl Reader {
     fn param(&mut self) -> Option<Param> {
         self.open_paren()?;
         let x = self.local_name()?;
-        let t = self.ty()?;
-        self.close_paren()?;
-        Some(Param { name: x, ty: t })
-    }
-
-    fn field(&mut self) -> Option<Param> {
-        self.open_paren()?;
-        let x = self.ident()?;
         let t = self.ty()?;
         self.close_paren()?;
         Some(Param { name: x, ty: t })
@@ -787,7 +934,7 @@ impl Reader {
         })
     }
 
-    fn xexpr(&mut self) -> Option<XExpr> {
+    fn xexpr(&mut self, stored: bool) -> Option<XExpr> {
         match self.token()? {
             Token::Text(s) => Some(XExpr::Text(s)),
             Token::Atom(s) => match parse_int(&s) {
@@ -808,13 +955,56 @@ impl Reader {
                 let x = match self.atom()?.as_str() {
                     "unit" => XExpr::Unit,
                     "dur" => XExpr::Dur(self.int()?),
-                    "new" => XExpr::New(self.ident()?, self.until_close(Reader::xexpr)?),
-                    "some" => XExpr::Some(Box::new(self.xexpr()?)),
+                    "new" => XExpr::New(self.ident()?, self.until_close(|r| r.xexpr(stored))?),
+                    "some" => XExpr::Some(Box::new(self.xexpr(stored)?)),
                     "none" => XExpr::None,
-                    "ok" => XExpr::Ok(Box::new(self.xexpr()?)),
-                    "err" => XExpr::Err(Box::new(self.xexpr()?)),
-                    "step" => XExpr::Step(self.int()?),
-                    "ticket" => XExpr::Ticket(self.int()?),
+                    "ok" => XExpr::Ok(Box::new(self.xexpr(stored)?)),
+                    "err" => XExpr::Err(Box::new(self.xexpr(stored)?)),
+                    "f64" => XExpr::F64(self.float_atom(Fmt::B64)?),
+                    "f32" => XExpr::F32(self.float_atom(Fmt::B32)? as u32),
+                    "dec" => {
+                        let (s, c) = self.decimal_atom()?;
+                        XExpr::Dec(s, c)
+                    }
+                    "step" => {
+                        let a = self.atom()?;
+                        match parse_int(&a) {
+                            Some(n) => XExpr::Step(n),
+                            None => {
+                                if stored && is_ident(&a) {
+                                    XExpr::StepOf(
+                                        a,
+                                        Box::new(self.xexpr(stored)?),
+                                        self.int()?,
+                                        self.int()?,
+                                    )
+                                } else {
+                                    return None;
+                                }
+                            }
+                        }
+                    }
+                    "ticket" => {
+                        let a = self.atom()?;
+                        match parse_int(&a) {
+                            Some(n) => XExpr::Ticket(n),
+                            None => {
+                                if stored && is_ident(&a) {
+                                    XExpr::TicketOf(
+                                        a,
+                                        Box::new(self.xexpr(stored)?),
+                                        self.int()?,
+                                        self.int()?,
+                                        self.int()?,
+                                    )
+                                } else {
+                                    return None;
+                                }
+                            }
+                        }
+                    }
+                    "time" if stored => XExpr::Time(self.int()?),
+                    "principal" if stored => XExpr::Principal(self.text_token()?),
                     _ => return None,
                 };
                 self.close_paren()?;
@@ -827,16 +1017,16 @@ impl Reader {
     fn fact(&mut self) -> Option<Fact> {
         self.open_paren()?;
         let f = match self.atom()?.as_str() {
-            "outcome" => Fact::Outcome(self.xexpr()?),
+            "outcome" => Fact::Outcome(self.xexpr(false)?),
             "reject" => Fact::Reject(self.ident()?),
-            "answer" => Fact::Answer(self.xexpr()?),
+            "answer" => Fact::Answer(self.xexpr(false)?),
             "refused" => {
                 self.keyword("forbidden")?;
                 Fact::Refused
             }
             "fault" => Fact::Fault(self.ident()?),
             "ignored" => Fact::Ignored,
-            "state" => Fact::State(self.ident()?, self.until_close(Reader::xexpr)?),
+            "state" => Fact::State(self.ident()?, self.until_close(|r| r.xexpr(false))?),
             _ => return None,
         };
         self.close_paren()?;
@@ -853,7 +1043,7 @@ impl Reader {
     fn send_args(&mut self) -> Option<Vec<XExpr>> {
         let mut xs = Vec::new();
         while self.peek_head() != Some("expect") {
-            xs.push(self.xexpr()?);
+            xs.push(self.xexpr(false)?);
         }
         Some(xs)
     }
@@ -874,7 +1064,7 @@ impl Reader {
                 }
             }
             "fire" => {
-                let t = self.xexpr()?;
+                let t = self.xexpr(false)?;
                 let fs = self.expect()?;
                 Line::Fire {
                     ticket: t,
@@ -895,13 +1085,40 @@ impl Reader {
         Some(Actor { name: n, roles: rs })
     }
 
+    fn field(&mut self) -> Option<(Param, Option<XExpr>)> {
+        self.open_paren()?;
+        let x = self.ident()?;
+        let t = self.ty()?;
+        let init = if self.peek_close() {
+            None
+        } else {
+            self.head("init")?;
+            let v = self.xexpr(true)?;
+            self.close_paren()?;
+            Some(v)
+        };
+        self.close_paren()?;
+        Some((Param { name: x, ty: t }, init))
+    }
+
+    fn expected(&mut self) -> Option<Option<XExpr>> {
+        self.open_paren()?;
+        let x = match self.atom()?.as_str() {
+            "value" => Some(self.xexpr(true)?),
+            "invalid" => None,
+            _ => return None,
+        };
+        self.close_paren()?;
+        Some(x)
+    }
+
     fn example(&mut self) -> Option<Example> {
         let n = self.decl_name()?;
         self.head("machine")?;
         let m = self.ident()?;
         self.close_paren()?;
         self.head("key")?;
-        let k = self.xexpr()?;
+        let k = self.xexpr(false)?;
         self.close_paren()?;
         let actors = self.headed("actor", Reader::actor)?;
         let lines = self.some1(Reader::line)?;
@@ -926,9 +1143,16 @@ impl Reader {
             }
             "record" => {
                 let n = self.decl_name()?;
-                let fs = self.some1(Reader::field)?;
+                let mut fs = self.until_close(Reader::field)?;
+                let rest = fs.split_off(fs.iter().take_while(|f| f.1.is_none()).count());
+                let inits = init_fields(rest)?;
+                let plain = non_empty(fs)?;
                 self.close_paren()?;
-                Some(Item::Record(n, fs))
+                Some(Item::Record(
+                    n,
+                    plain.into_iter().map(|f| f.0).collect(),
+                    inits,
+                ))
             }
             "enum" => {
                 let n = self.decl_name()?;
@@ -951,6 +1175,15 @@ impl Reader {
             "machine" => Some(Item::Machine(self.machine()?)),
             "deployment" => Some(Item::Deployment(self.deployment()?)),
             "example" => Some(Item::Example(self.example()?)),
+            "decode" => {
+                let n = self.decl_name()?;
+                let t = self.ty()?;
+                let chars: Vec<char> = self.text_token()?.chars().collect();
+                let frame = hex_bytes(&chars)?;
+                let x = self.expected()?;
+                self.close_paren()?;
+                Some(Item::Decode(n, t, frame, x))
+            }
             _ => None,
         }
     }

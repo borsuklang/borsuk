@@ -73,8 +73,6 @@ def neg (a : Bounds) : Bounds := ⟨-a.hi, -a.lo⟩
 
 def scale (k : Int) (a : Bounds) : Bounds := ⟨a.lo <<< k, a.hi <<< k⟩
 
-def lt (a b : Bounds) : Bool := decide (a.hi < b.lo)
-
 private def mag (a : Bounds) : Dyadic := greatest (-a.lo) a.hi
 
 def add (w : Nat) (a b : Bounds) : Bounds :=
