@@ -20,7 +20,7 @@ Borsuk is a language for services of every size. Coding agents write it. People 
 
 ### v0.0.2: canonical bytes and exact numbers
 
-Status: planned.
+Status: released, tag `v0.0.2`.
 
 | Document | Content |
 |---|---|
@@ -48,7 +48,7 @@ Status: released, tag `v0.0.1`.
 
 | Path | Content |
 |---|---|
-| `spec/` | The Lean 4 reference. It builds the executable `brk-ref` and the proof `Borsuk.coverage`. |
+| `spec/` | The Lean 4 reference. It builds the executable `brk-ref` and the proofs `Borsuk.coverage`, `Borsuk.decode_encode`, `Borsuk.encode_decode`, `Borsuk.encode_typed` and `Borsuk.encode_total`. |
 | `crates/` | The Rust mirror of the reference. It builds the executable `brk`. |
 | `corpus/` | The accepted, rejected and failing programs, with their expected output. |
 | `check.sh` | The only gate. Run `./check.sh all` from the repository root. |
