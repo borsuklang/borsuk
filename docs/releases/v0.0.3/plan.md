@@ -69,7 +69,7 @@ Each rule of the v0.0.1 plan and of the v0.0.2 plan stays in force, except these
 
 ### 1.2 Corrections to the v0.0.2 code
 
-These corrections change no output and no byte on the frozen corpus. The scope rule refuses a forward reference, which v0.0.2 accepted. The frozen corpus has no such reference. Each correction has a check that fails without it, except the fourth: the depth limits of section 2.1 bound its cost.
+These corrections change no output and no byte on the frozen corpus. The scope rule refuses a forward reference, which v0.0.2 accepted. The frozen corpus has no such reference. Each correction has a check that fails without it, except the fourth. The depth limits of section 2.1 bound the cost of the fourth correction.
 
 | Correction | Rule | Check |
 |---|---|---|
@@ -162,13 +162,13 @@ This table is the only place of each number. Design section 8 states that a type
 
 - The text depth of a token is the number of open parentheses before it that have no closing parenthesis before it. A parenthesis inside a `TEXT` does not count. The reader computes it on the list of the tokens.
 - The type depth of a scalar type is 0. The type depth of `StepId` and of `Ticket` is 1 plus the largest depth of a machine key type. The type depth of an `Option`, a `Result`, a `List`, a `Map`, a record, an enum and a newtype is 1 plus the largest depth of the types that it holds. An enum holds the fields of each variant. A name counts with the depth of its declaration, and an instance with the depth of the instance.
-- 64 is the default depth limit of two formats with fixed offsets, Cap'n Proto and FlatBuffers. 512 is the next power of two above 449 = 5 + 3 × 127 + 63: C11 section 5.2.4.1 asks a compiler for 127 levels of blocks and 63 levels of parentheses, and one `match` of the IR uses 3 parentheses. 65535 is the largest `u16`, as for the field count of a record. 20 characters hold each `INT` of the signed 64-bit range.
+- 64 is the default depth limit of two formats with fixed offsets, Cap'n Proto and FlatBuffers. 512 is the next power of two above 449 = 5 + 3 × 127 + 63. C11 section 5.2.4.1 asks a compiler for 127 levels of blocks and 63 levels of parentheses, and one `match` of the IR uses 3 parentheses. 65535 is the largest `u16`, as for the field count of a record. 20 characters hold each `INT` of the signed 64-bit range.
 - The deepest text of the frozen corpus has 15 levels, its deepest type has the depth 2, its longest text has 88 bytes, and its longest `ID` has 27 characters.
 - v0.0.3 has no text operation, so each text value comes from a literal or from a frame. A text type with its own maximum, `(Text N)`, comes with the text operations of milestone 0.0.4.
 
 ## 3. Semantics
 
-The memory model is the model of design section 8: each value has one owner, a value is a tree, a binding never changes, and each copy that is not trivial is written. The rules of sections 3.1 to 3.4 are static. They change no result of `Eval`: `(copy p)` has the value of `p`.
+The memory model is the model of design section 8. Each value has one owner, a value is a tree, a binding never changes, and each copy that is not trivial is written. The rules of sections 3.1 to 3.4 are static. They change no result of `Eval`, and `(copy p)` has the value of `p`.
 
 ### 3.1 Plain types and owned types
 
@@ -177,7 +177,7 @@ The memory model is the model of design section 8: each value has one owner, a v
 - An `Option`, a `Result`, a record, an enum or a newtype is owned when it holds an owned type: in a field, in a variant, as its inner type, or through a type that it names.
 - Each other type is plain.
 
-A copy of a plain value is trivial, and it has no text. Each plain type has a largest size (section 4.2), so each such copy has a bound: the size limit of section 2.1 for a `Principal`. So `Principal`, `StepId` and `Ticket` are plain, as in the Slot machine of design section 5, which uses `hold` and `owner` two times with no `copy`. With these rules, each `fn` of the frozen corpus has only parameters with no keyword, and no frozen file needs `copy`. If a frozen accepted file fails `check`, stop and ask.
+A copy of a plain value is trivial, and it has no text. Each plain type has a largest size (section 4.2), so each such copy has a bound. For a `Principal`, the bound is the size limit of section 2.1. So `Principal`, `StepId` and `Ticket` are plain, as in the Slot machine of design section 5, which uses `hold` and `owner` two times with no `copy`. With these rules, each `fn` of the frozen corpus has only parameters with no keyword, and no frozen file needs `copy`. If a frozen accepted file fails `check`, stop and ask.
 
 ### 3.2 Places and positions
 
@@ -283,7 +283,7 @@ The key order compares two keys of one key type:
 | `(count c)` | The number of elements or entries, as an `Int`. |
 | `==` | Two lists are equal when their counts are equal and each pair of elements at one index is equal. Two maps are equal when their counts are equal and each pair of entries at one position has equal keys and equal values. |
 
-Each form evaluates its operands left to right. A collection form never changes a value: `push`, `put` and `drop` give a new value. The lowering makes the update in place (section 6.3).
+Each form evaluates its operands left to right. `push`, `put` and `drop` give a new value, and the operand keeps its value. The lowering makes the update in place (section 6.3).
 
 A state collection is a state field with a `List` type or a `Map` type. Design section 8 gives two rules for it: each collection states a maximum size, and "a step reads a collection entry only by a key that the input or the fixed record gives". Section 4.3 gives the static rule for the second sentence.
 
@@ -374,7 +374,7 @@ An item names only declared names that are in scope (section 2, design section 1
 
 `layout-limit` also refuses a type whose largest frame has 2^32 bytes or more, and a type whose depth is above the type depth of section 2.1. The place is the first type expression in tree order above a limit. `T` is the text of that type in the form of the grammar. For a record, enum or newtype with no type parameter, this text is its name.
 
-The largest frame of a type is 2 bytes of version and `most` of the type. `most` is the largest size of the encoding of a value of the type. `whole` of a type is its size if it is fixed-size, else 4 + `most`: its slot and its part.
+The largest frame of a type is 2 bytes of version and `most` of the type. `most` is the largest size of the encoding of a value of the type. `whole` of a type is its size if it is fixed-size. Else `whole` is 4 + `most`, for the slot and the part.
 
 | Type | `most` |
 |---|---|
@@ -505,7 +505,7 @@ A list and a map are composites (v0.0.2 section 5.4).
 
 `frame_ok` takes the layout table, a row number and the bytes of a frame after its version. It makes each decode check of v0.0.2 section 5.8 and of section 5.3, and it builds no value. Section 9.1 proves that it accepts a byte string exactly when decode gives a value. The lowered step uses it to admit an input frame, so that the step can read each field in the received bytes (design section 8).
 
-A `decode` item also compares the two functions: a `(value X)` item passes only when `H` has the version 1 and `frame_ok` accepts the bytes after it. An `(invalid)` item passes only when `H` has another version, or `frame_ok` refuses the bytes after it.
+A `decode` item also compares the two functions. A `(value X)` item passes only when `H` has the version 1 and `frame_ok` accepts the bytes after it. An `(invalid)` item passes only when `H` has another version, or `frame_ok` refuses the bytes after it.
 
 ### 5.5 Termination
 
@@ -517,7 +517,7 @@ Encode recurses on the value. Decode, `full` and `frame_ok` recurse on the row n
 
 `brk` lowers each cell of each machine of a program, with each `fn` that a cell calls. A generic `fn` gets one lowered function for each list of type arguments. The entry `fn` of a deployment stays with the interpreter.
 
-The design names no code generator. The lowering of v0.0.3 writes Rust text, and `rustc` 1.98.1 compiles it to native code. This keeps the rule that the product uses `std` only, and it needs no `unsafe` code. The lowering reads the checked syntax tree and the layout table. Rule 3 of design section 16 stays true: no value of the IR and no offset depends on the pointer size.
+The design names no code generator. The lowering of v0.0.3 writes Rust text, and `rustc` 1.98.1 compiles it to native code. This keeps the rule that the product uses `std` only, and it needs no `unsafe` code. The lowering reads the checked syntax tree and the layout table. Rule 3 of design section 16 stays true. No value of the IR and no offset depends on the pointer size.
 
 ### 6.2 Memory forms
 
@@ -532,7 +532,7 @@ Section 7 selects the memory form of the state: `frame` or `split`.
 | Result | One byte buffer for each step, with the reply and each output in arm F encodings |
 | Temporary values | The arena (section 6.3) |
 
-The state frame is the frame of an enum that has one variant for each state, in declared order, with the fields of the state. It is always a composite, and its tag is a `u32`. An entry of a map field with `retain` has a third slot after the key slot: its stamp, a `Time`.
+The state frame is the frame of an enum that has one variant for each state, in declared order, with the fields of the state. It is always a composite, and its tag is a `u32`. An entry of a map field with `retain` has a third slot after the key slot. This slot holds the stamp of the entry, a `Time`.
 
 The input frame, the state frame and the result buffer are internal forms of v0.0.3. They are not stored bytes and not wire bytes. The coordinator selects each detail of the result buffer that this section does not give. Milestone 0.0.7 defines the log record and the stored state.
 
@@ -550,7 +550,7 @@ The input frame, the state frame and the result buffer are internal forms of v0.
 | K8 Numbers | Each `Int` form uses the checked operations of `std`. Each float form, math form and decimal form calls the function of `borsuk-core` that the interpreter calls. |
 | K9 Code | The lowered text has no `unsafe` code, no integer `as` cast, and no `saturating_` or `wrapping_` call. It uses `std`, `borsuk-core` and `borsuk-native` only. |
 
-Each value has a largest size (section 4.2), and each `for` has a largest count. So the arena use of a step has a bound. v0.0.3 does not compute that bound: the arena grows by blocks, no step has a fault from the arena, and `brk-ref` needs no arena.
+Each value has a largest size (section 4.2), and each `for` has a largest count. So the arena use of a step has a bound. v0.0.3 does not compute that bound. The arena grows by blocks, no step has a fault from the arena, and `brk-ref` needs no arena.
 
 The compiled program of step 10 runs on the default stack. The depth limits of section 2.1 bound the stack use of a lowered step.
 
@@ -828,7 +828,7 @@ Each theorem has no `sorry` and no new `axiom`. Imports come only from Lean core
 
 - `Borsuk.one_signature` is the Lean proof of design section 8 that M is deterministic. It also covers each `copy` form. `M` has the Lean name `mode`. `erase`, `mode`, `layout` and `frameOk` are the definitions of sections 3.4, 5.1 and 5.4.
 - `amount` and `toU` take the proof `h` as a parameter. So each call in `Approx` and `Math` states that its argument is below 2^64, and Lean checks it. With `Borsuk.amount_exact`, the limit of these two functions changes no result. This is the theorem for the claim "no input reaches the saturation".
-- `Borsuk.round_int_range` is the theorem for the Rust conversion from `i128` to `i64` in `dec_value`: the conversion cannot fail.
+- `Borsuk.round_int_range` states that the Rust conversion from `i128` to `i64` in `dec_value` cannot fail.
 - v0.0.3 states no other claim "this cannot occur" without a theorem, a harness or a result that the user sees.
 
 ### 9.2 Kani
@@ -944,7 +944,7 @@ The corpus of v0.0.1 and of v0.0.2 and their expected outputs are frozen. `brk-r
 
 ### 10.4 Scale files
 
-`borsuk-gen scale DIR` writes the scale files into `DIR`. Step 12 of `check.sh` runs each one in both executables under one limit of time and one limit of memory (section 11). The files are not in the repository. They are the check of the cost rule: a sample for each size that grows with the text, not a proof.
+`borsuk-gen scale DIR` writes the scale files into `DIR`. Step 12 of `check.sh` runs each one in both executables under one limit of time and one limit of memory (section 11). The files are not in the repository. They check the cost rule with one sample for each size that grows with the text.
 
 | File | Content | Command and result | v0.0.2 |
 |---|---|---|---|
@@ -986,16 +986,16 @@ docs/releases/v0.0.3/            plan.md, q2-test-cells.md, q3-one-signature.md
 
 `borsuk-native` depends on `borsuk-core` and `std` only. Each new crate of the workspace has `#![forbid(unsafe_code)]` and `[lints] workspace = true`.
 
-The only new tool setting: the release profile of the workspace, of `corpus/gen/` and of the crate of step 10 has `overflow-checks = true`. So an integer overflow in a release build stops the program with a message. It never wraps.
+The release profile of the workspace, of `corpus/gen/` and of the crate of step 10 has `overflow-checks = true`. It is the only new tool setting. An integer overflow in a release build stops the program with a message.
 
-`check.sh` keeps each step of v0.0.2 and changes these steps. No step sets a stack size: each executable runs on the default stack of the host.
+`check.sh` keeps each step of v0.0.2 and changes these steps. Each executable runs on the default stack of the host, and no step sets a stack size.
 
 | Step | Change |
 |---|---|
-| 3 | The list of the theorem names is the list of section 9.1: twelve names. |
+| 3 | The list of the theorem names is the list of the twelve names of section 9.1. |
 | 4 | The search also covers `corpus/gen`. |
 | 5, 6, 7 | Each command of an executable runs under `timeout -k 5 60`. A command that the timeout ends fails the step. Step 5 also runs `check` on `experiments/q2-test-cells/cells.brk`: exit 0 with no output. Steps 5 and 6 also fail when a file of a limit pair of section 10.1 does not exist. |
-| 8 | Each harness of `borsuk-core` in section 9.2 runs with its `MemoryMax` and its cover count. The command and the two output tests of v0.0.2 do not change. The harnesses run one after the other. This step is the exception that the host rules of the goal permit for one step: one Kani process can use up to its limit. |
+| 8 | Each harness of `borsuk-core` in section 9.2 runs with its `MemoryMax` and its cover count. The command and the two output tests of v0.0.2 do not change. The harnesses run one after the other. This step uses the exception of the host rules of the goal. One Kani process at a time can use up to its limit. |
 | 9 | `cargo build --release --manifest-path corpus/gen/Cargo.toml`. `borsuk-gen corpus` writes the large files into a temporary directory, and each file equals the file of the same path in `corpus/`. `borsuk-gen programs` writes the 200 files into a temporary directory. For each file and each executable, under the timeout of step 5: `check` exits 0 with no output, and `test` exits 0. The `test` outputs of the two executables are equal, byte by byte. |
 | 10 | The step makes a crate in a temporary directory: a `Cargo.toml` with path dependencies on `borsuk-core` and `borsuk-native`, one module from `brk lower FILE` for each accepted corpus file and each file of step 9, and a `main.rs` that `check.sh` holds. `main.rs` has `#![forbid(unsafe_code)]`. For each module, it calls `replay` and prints `native ok FILE N`, with the number of the compared events, or it prints the difference and exits 1. The step runs `cargo build --release --manifest-path` on that crate with `--target-dir target/native`, then runs the program. The step passes when the program exits 0 and prints one `native ok` line for each file. Then the step runs the harness `arena_alloc` with the command of step 8 and `-p borsuk-native`. |
 | 11 | For each pair of a Lean module and its Rust mirror, of v0.0.1, of v0.0.2 and of this section: each Rust function name has a Lean definition with that name in the module, or it is on the list that `check.sh` holds. A Rust function name is the word after `fn` on a line that matches `^\s*(pub )?fn [a-z0-9_]+`. A Lean definition name is the last part, after the last `.`, of the word after `def` or `abbrev` on a line that matches `^\s*(private \|partial \|protected )*(def\|abbrev) `, in `snake_case`: a `_` goes before each capital letter that follows a small letter or a digit, and before each capital letter that a small letter follows; then each letter becomes small. The step also fails when an entry of the list names no Rust function, or names a function that has a Lean definition. |
@@ -1064,7 +1064,7 @@ Freeze points:
 | G5 | The count crate against section 8. With a Rust program that it writes in its scratch directory, and that does not use the crate, it makes each body of the size 4 or less and counts them. It compares that number, and the bodies, with the mode `list 1` limited to those sizes. It runs `brk-ref check` on each completion of 20 bodies that `list 1000` prints, and compares each answer. It derives the decision from `count.txt` and compares it with the report. | "wrong decision" |
 | G6 | The full diff of the release against this plan and the design | — |
 
-The coordinator runs the counts of P1b and P6b directly, not through a subagent.
+Only the coordinator runs the counts of P1b and P6b.
 
 ## 13. Rules
 
@@ -1077,7 +1077,7 @@ These rules add to v0.0.1 section 9 and v0.0.2 section 11:
 - `nat.rs`, `proofs.rs` and `lower.rs` are the only modules of `borsuk-core` with no Lean module. The crate `borsuk-native`, the experiment crates and `borsuk-gen` have no Lean module. This is the exception to the mirror rule that the goal permits a plan to name. The replay of section 6.5 is the check of the lowering.
 - No Rust code outside `nat.rs` clamps, wraps or cuts an integer (step 13). `min`, `max` and the two helpers of section 1.2 are mathematics with a defined result.
 - The product uses Rust `std` and Lean `Init` only. Kani, `valgrind` and the oracle of v0.0.2 are tools outside the product.
-- No code of v0.0.3 has `unsafe`. The arena gives positions, not pointers. Each crate has `#![forbid(unsafe_code)]`.
+- No code of v0.0.3 has `unsafe`. The arena gives positions in its blocks. Each crate has `#![forbid(unsafe_code)]`.
 - `borsuk-core` and `borsuk-native` compile on the toolchain of Kani 0.68.0. If clippy 1.98.1 and that toolchain disagree, stop and ask.
 - The lowering has no pass that changes the order or the number of the operations of a cell. Rules K1 to K9 are its only memory rules.
 - v0.0.3 builds no store, no log record, no wire form of a message, no hash, no module, no function parameter, no text operation and no code generator other than the Rust text.
