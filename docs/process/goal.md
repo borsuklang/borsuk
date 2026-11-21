@@ -73,10 +73,12 @@ The plan states only its latest text: no history, no review rounds and no dates 
 | Implementer | Opus subagent | One slice: one file of the phase. Gets the plan path, the slice, the Lean module that a Rust file mirrors, the rules sections of each plan in force and the host rules below. | Its slice only |
 | Phase reviewer | new Opus subagent | Examines the diff of one phase against the plan. Reports each finding with file and line. | No |
 | Gate reviewer | Fable subagent (Agent tool, `model: fable`) | Runs each gate of the plan. | No file in the repository |
+| Consultant | Fable subagent (Agent tool, `model: fable`) | Gives advice on the hardest technical problem of a phase. The coordinator decides when to start it and selects its effort, up to `xhigh`. | No file in the repository |
 | Comment check | `/no-comments` skill | Removes comments and finds workaround code in the phase diff. | Comments only |
 
 - At most three subagents run at the same time. At most two heavy jobs run at the same time, and this count includes the jobs of the coordinator.
 - Only the coordinator runs `check.sh` and Kani.
+- The coordinator can start a consultant when a problem resists the usual attempts. Give it the problem, the measurements, the file paths and the rules in force. The coordinator decides each step after the advice. The advice does not replace an answer of the owner where this goal says "stop and ask".
 - Two slices that run at the same time never share a file.
 - Each subagent gets a narrow brief with file paths. Give each reviewer the files and the plan, not your conclusions.
 - A new reviewer examines each phase and each gate. Never reuse a reviewer.
