@@ -18,6 +18,14 @@ Borsuk is a language for services of every size. Coding agents write it. People 
 
 ## Releases
 
+### v0.0.3: memory and native code
+
+Status: draft plan. The plan review has not run.
+
+| Document | Content |
+|---|---|
+| [Plan](releases/v0.0.3/plan.md) | The draft contract of v0.0.3: owned values and the mode function M, user generics, bounded collections and `for`, the native lowering with the Q2 test cells, the Q3 count, the layout table, the scope rule and the limits, the proofs, the corpus and `check.sh`. |
+
 ### v0.0.2: canonical bytes and exact numbers
 
 Status: released, tag `v0.0.2`.
